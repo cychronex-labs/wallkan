@@ -6,11 +6,11 @@ typedef enum Result {
     RESULT_OK,
 } Result;
 
-void
+Result
 log_error(Result code, const char *code_name, const char *file, int line, const char *fmt,...);
 
 #define ERR(code, fmt, ...) \
-    (log_error(code, #code, __FILE__, __LINE__, fmt, ##__VA_ARGS__) , (code))
+    log_error(code, #code, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 
 #define TRY(expr) \
     do {\

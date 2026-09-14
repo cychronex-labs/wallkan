@@ -3,7 +3,7 @@
 #include "common.h"
 #include "err.h"
 
-void
+Result
 log_error(Result code, const char *code_name, const char *file, int line, const char *fmt,...)
 {
     fprintf(stderr, "%sFAILED!\n", COLOR_ERR);
@@ -14,5 +14,6 @@ log_error(Result code, const char *code_name, const char *file, int line, const 
     va_start(args, fmt);
     vfprintf(stderr, fmt, args);
     va_end(args);
-    fprintf(stderr, "%s\n",COLOR_RESET);
+    fprintf(stderr, "%s\n", COLOR_RESET);
+    return code;
 }
