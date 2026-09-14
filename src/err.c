@@ -3,8 +3,8 @@
 #include "common.h"
 #include "err.h"
 
-Result
-log_error(Result code, const char *code_name, const char *file, int line, const char *fmt,...)
+WkResult
+wk_log_error(WkResult code, const char *code_name, const char *file, int line, const char *fmt,...)
 {
     fprintf(stderr, "%sFAILED!\n", COLOR_ERR);
     fprintf(stderr, "    ERROR:    %s (%d)%s\n", code_name, code, COLOR_RESET);
