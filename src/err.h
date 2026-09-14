@@ -1,6 +1,5 @@
 #ifndef WALLKAN_ERR_H
 #define WALLKAN_ERR_H
-
 #include <stdarg.h>
 
 typedef enum Result {
@@ -16,13 +15,7 @@ log_error(Result code, const char *code_name, const char *file, int line, const 
 #define TRY(expr) \
     do {\
         Result _res = (expr);\
-        if(_res != RESULT_OK) return res;\
-    } while(0)
-
-#define TRY_CLEANUP(expr) \
-    do {\
-        Result _res = (expr);\
-        if(_res != RESULT_OK) goto cleanup;\
+        if(_res != RESULT_OK) return _res;\
     } while(0)
 
 #endif
