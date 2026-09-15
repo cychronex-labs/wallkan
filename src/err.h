@@ -3,8 +3,22 @@
 
 typedef enum WkResult {
     WK_OK,
+    WK_ERR_ALLOCATION_ERROR,
+    WK_ERR_EVENT_HANDLER_UNKNOWN_EVENT,
+    WK_ERR_EVENT_HANDLER_MAX_SLOTS,
+    WK_ERR_EVENT_HANDLER_CALLBACK_NULL,
+
+    WK_ERR_WL_DISPLAY_CONNECT_FAILURE,
+    WK_ERR_WL_NULL_REGISTRY,
+    WK_ERR_WL_REGISTRY_ROUNDTRIP_FAILURE,
+    WK_ERR_WL_GLOBAL_COMPOSITOR_UNDEFINED,
+    WK_ERR_WL_GLOBAL_LAYER_SHELL_UNDEFINED,
+    WK_ERR_WL_SURFACE_CREATION_FAILURE,
+    WK_ERR_WL_ZWLR_LAYER_SURFACE_ROLE_FAILURE,
+    WK_ERR_WL_DISPLAY_ROUNDTRIP_FAILURE
 } WkResult;
 
+__attribute__((format(printf, 5, 6)))
 WkResult
 wk_log_error(WkResult code, const char *code_name, const char *file, int line, const char *fmt,...);
 
@@ -14,7 +28,7 @@ wk_log_error(WkResult code, const char *code_name, const char *file, int line, c
 #define WK_TRY(expr) \
     do {\
         WkResult _res = (expr);\
-        if(_res != RESULT_OK) return _res;\
+        if(_res != WK_OK) return _res;\
     } while(0)
 
 #endif
