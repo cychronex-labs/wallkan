@@ -40,6 +40,13 @@ wayland_protos = dependency('wayland-protocols')
 wl_proto_dir = wayland_protos.get_variable('pkgdatadir')
 xdg_shell_xml = wl_proto_dir / 'stable/xdg-shell/xdg-shell.xml'
 
+xdg_shell_h = custom_target(
+  'xdg-shell-h',
+  input: xdg_shell_xml,
+  output: 'xdg-shell.h',
+  command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+)
+
 xdg_shell_c = custom_target(
   'xdg-shell-c',
   input: xdg_shell_xml,
@@ -48,14 +55,17 @@ xdg_shell_c = custom_target(
 )
 
 sources = files(
-  'wallkan.c',
+  'src/wallkan.c',
   'src/err.c',
+  'src/events.c',
+  'src/window.c',
 )
 
 exec = executable(
   'wallkan',
   [
     sources,
+    xdg_shell_h,
     xdg_shell_c,
     layer_shell_h,
     layer_shell_c
