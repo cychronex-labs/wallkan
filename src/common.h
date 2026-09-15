@@ -1,6 +1,6 @@
 #ifndef WALLKAN_COMMON_H
 #define WALLKAN_COMMON_H
-
+#include <stdio.h>
 #ifndef COLOR_RESET
     #define COLOR_ERR "\x1b[38;5;196m"
     #define COLOR_WARN "\x1b[38;5;184m"
