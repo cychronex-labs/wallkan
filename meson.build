@@ -9,7 +9,7 @@ project(
     'werror=false',
   ],
 )
-add_project_arguments('-D_POSIX_C_SOURCE=200809L', language: 'c')
+add_project_arguments('-D_GNU_SOURCE', language: 'c')
 
 inc = include_directories('src')
 
@@ -17,11 +17,8 @@ inc = include_directories('src')
 
 wayland_client = dependency('wayland-client')
 
-dependencies = [
-  wayland_client,
-]
+wayland_scanner = find_program('wayland-scanner', native: true, required: true)
 
-wayland_scanner = find_program('wayland-scanner', required: true)
 layer_shell_xml = files('protocols/wlr-layer-shell-unstable-v1.xml')
 layer_shell_h = custom_target(
   'wlr-layer-shell-h',
@@ -44,7 +41,7 @@ xdg_shell_h = custom_target(
   'xdg-shell-h',
   input: xdg_shell_xml,
   output: 'xdg-shell.h',
-  command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+  command: [wayland_scanner, 'client-header', '@INPUT@', '@OUTPUT@'],
 )
 
 xdg_shell_c = custom_target(
