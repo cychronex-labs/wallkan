@@ -44,11 +44,11 @@ wk_ev_handler_init(WallkanEventHandler *wk_ev_handler);
 
 WkResult
 wk_ev_handler_bind(WallkanEventHandler *wk_ev_handler, WkEventType event_type,
-    WkEventCallback *event_callback, uint32_t *out_callback_idx);
+    uint32_t *out_callback_idx, WkEventCallback *event_callback);
 
 WkResult
 wk_ev_handler_rebind(WallkanEventHandler *wk_ev_handler, WkEventType event_type,
-    WkEventCallback *event_callback, uint32_t callback_idx);
+    uint32_t callback_idx, WkEventCallback *event_callback);
 
 WkResult
 wk_ev_handler_emit(WallkanEventHandler *wk_ev_handler, const WkEvent *event);

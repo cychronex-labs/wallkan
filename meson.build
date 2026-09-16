@@ -51,11 +51,21 @@ xdg_shell_c = custom_target(
   command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
 )
 
+cwalk_dep = dependency('cwalk', fallback: ['cwalk', 'cwalk_dep'])
+yyjson_dep = dependency('yyjson', fallback: ['yyjson', 'yyjson_dep'])
+
+dependencies = [
+  wayland_client,
+  cwalk_dep,
+  yyjson_dep
+]
+
 sources = files(
   'src/wallkan.c',
   'src/err.c',
   'src/events.c',
   'src/window.c',
+  'src/ipc.c',
 )
 
 exec = executable(

@@ -2,6 +2,7 @@
 // Responsbilities;
 // 1. Wayland setup code
 // 2. Wayland event broadcasting
+#include <errno.h>
 #include <string.h>
 #include "common.h"
 #include "err.h"
@@ -140,7 +141,7 @@ cb_on_layer_configure(void *data, struct zwlr_layer_surface_v1 *zwlr_layer_surfa
                     .height = height,
                 }
             };
-            wk_ev_handler_emit(wk_win->ev_handler_ptr, &event);
+            wk_ev_handler_emit(wk_win->wk_ev_handler, &event);
         }
         wk_win->zwlr_layer.width = width;
         wk_win->zwlr_layer.height = height;
@@ -157,7 +158,7 @@ cb_on_layer_closed(void *data, struct zwlr_layer_surface_v1 *zwlr_layer_surface_
     WkEvent event = {
         .type = WK_EVENT_CLOSE
     };
-    wk_ev_handler_emit(wk_win->ev_handler_ptr, &event);
+    wk_ev_handler_emit(wk_win->wk_ev_handler, &event);
     LOG("(CB)cb_on_layer_closed: ZWLR layer closed!");
 }
 
@@ -207,6 +208,18 @@ static struct wl_registry_listener registry_listener = {
     .global_remove = &cb_registry_global_remove
 };
 
+static void
+cb_on_frame_done(void *data, struct wl_callback *cb, uint32_t time)
+{
+    WallkanWindow *win = (WallkanWindow *)data;
+    wl_callback_destroy(cb);
+    win->frame_cb = NULL;
+    win->frame_ready = true;
+    win->frame_time_ms = time;
+}
+static const struct wl_callback_listener frame_listener = {
+    .done = cb_on_frame_done,
+};
 
 // Helper functions
 static WkResult
@@ -301,7 +314,7 @@ setup_zwlr_layer_surface(WallkanWindow *wk_win)
 WkResult
 window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
 {
-    wk_win->ev_handler_ptr = wk_ev_handler;
+    wk_win->wk_ev_handler = wk_ev_handler;
     WK_TRY(connect_wayland_display(wk_win));
     WK_TRY(setup_registry(wk_win));
     WK_TRY(validate_registry(wk_win));
@@ -310,9 +323,47 @@ window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
     return WK_OK;
 }
 
+WkResult
+window_wl_prepare_read(WallkanWindow *wk_win)
+{
+    while (wl_display_prepare_read(wk_win->display) != 0) {
+        if(errno != EAGAIN) goto err;
+        wl_display_dispatch_pending(wk_win->display);
+    }
+    if(wl_display_flush(wk_win->display) < 0 && errno != EAGAIN){
+        wl_display_cancel_read(wk_win->display);
+        goto err;
+    }
+    return WK_OK;
+
+err:
+    return WK_ERR(WK_ERR_WL_COMPOSITOR_DISCONNECTED,
+        "Wayland compositor crashed on window_wl_prepare_read!");
+}
+
+WkResult
+window_request_frame(WallkanWindow *win)
+{
+    if (win->frame_cb != NULL) {
+        return WK_OK;
+    }
+    win->frame_cb = wl_surface_frame(win->surface);
+    if (!win->frame_cb) {
+        return WK_ERR(WK_ERR_WL_FRAME_CALLBACK_FAILED, "Failed to create wl_surface_frame");
+    }
+    wl_callback_add_listener(win->frame_cb, &frame_listener, win);
+    wl_surface_commit(win->surface);
+    return WK_OK;
+}
+
 void
 window_cleanup(WallkanWindow *wk_win)
 {
+    if(wk_win->frame_cb){
+        LOG("window_cleanup: Destroy frame callback...");
+        wl_callback_destroy(wk_win->frame_cb);
+        wk_win->frame_cb = NULL;
+    }
     if (wk_win->seat_caps.mouse) {
         LOG("window_cleanup: Releasing mouse pointer...");
         wl_pointer_release(wk_win->seat_caps.mouse);

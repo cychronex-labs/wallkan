@@ -37,7 +37,7 @@ wk_ev_handler_set_callback(WallkanEventHandler *wk_ev_handler, WkEventType event
 
 WkResult
 wk_ev_handler_bind(WallkanEventHandler *wk_ev_handler, WkEventType event_type,
-    WkEventCallback *event_callback, uint32_t *out_callback_idx)
+    uint32_t *out_callback_idx, WkEventCallback *event_callback)
 {
     WK_TRY(wk_ev_handler_set_callback(wk_ev_handler, event_type, event_callback,
         wk_ev_handler->callback_count[event_type]));
@@ -50,7 +50,7 @@ wk_ev_handler_bind(WallkanEventHandler *wk_ev_handler, WkEventType event_type,
 
 WkResult
 wk_ev_handler_rebind(WallkanEventHandler *wk_ev_handler, WkEventType event_type,
-    WkEventCallback *event_callback, uint32_t callback_idx)
+    uint32_t callback_idx, WkEventCallback *event_callback)
 {
     WK_TRY(wk_ev_handler_set_callback(wk_ev_handler, event_type, event_callback,
         callback_idx));

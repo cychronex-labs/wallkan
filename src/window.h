@@ -33,10 +33,17 @@ typedef struct WallkanWindow{
     // Reason: some wayland callback args require event handler but
     // Passing a separate struct for each callback function seemed inconvenient
     // EventHandler is a subsystem owned by the Root Struct
-    WallkanEventHandler *ev_handler_ptr;
+    WallkanEventHandler *wk_ev_handler;
+    struct wl_callback *frame_cb;
+    bool                frame_ready;
+    uint32_t            frame_time_ms;
 } WallkanWindow;
 
 WkResult window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler);
+
+WkResult window_wl_prepare_read(WallkanWindow *wk_win);
+
+WkResult window_request_frame(WallkanWindow *win);
 
 void window_cleanup(WallkanWindow *wk_win);
 
