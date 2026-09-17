@@ -28,11 +28,24 @@ typedef enum WkResult {
     WK_ERR_WL_DISPLAY_ROUNDTRIP_FAILURE,
     WK_ERR_WL_FRAME_CALLBACK_FAILED,
     WK_ERR_WL_COMPOSITOR_DISCONNECTED,
+
+    WK_ERR_VK_INSTANCE_EXT_ENUMERATION_FAILED,
+    WK_ERR_VK_REQUIRED_EXTENSION_UNAVAILABLE,
+    WK_ERR_VK_INSTANCE_LAYER_ENUMERATION_FAILED,
+    WK_ERR_VK_INSTANCE_CREATION_FAILED,
+    WK_ERR_VK_GET_INSTANCE_PROC_ADDR_FAILURE,
+    WK_ERR_VK_CREATE_DEBUG_MESSENGER_FAILED,
+    WK_ERR_VK_WL_SURFACE_CREATION_FAILURE
 } WkResult;
 
 __attribute__((format(printf, 5, 6)))
 WkResult
-wk_log_error(WkResult code, const char *code_name, const char *file, int line, const char *fmt,...);
+wk_log_error(WkResult code, const char *code_name, const char *file, int line,
+    const char *fmt,...);
+
+__attribute__((format(printf, 6, 7)))
+WkResult
+vk_expect(VkResult vkres, WkResult code, const char *code_name, const char *file, int line, const char *fmt,...);
 
 #define WK_ERR(code, fmt, ...) \
     wk_log_error(code, #code, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
@@ -42,5 +55,9 @@ wk_log_error(WkResult code, const char *code_name, const char *file, int line, c
         WkResult _wkres = (expr);\
         if(_wkres != WK_OK) return _wkres;\
     } while(0)
+
+
+#define EXPECT_VK(expr, code, fmt, ...) \
+    vk_expect((expr), code, #code, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 
 #endif

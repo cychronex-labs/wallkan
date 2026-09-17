@@ -9,7 +9,11 @@ project(
     'werror=false',
   ],
 )
-add_project_arguments('-D_GNU_SOURCE', language: 'c')
+add_project_arguments(
+[
+'-D_GNU_SOURCE',
+'-DVK_USE_PLATFORM_WAYLAND_KHR'
+], language: 'c')
 
 inc = include_directories('src')
 
@@ -51,13 +55,16 @@ xdg_shell_c = custom_target(
   command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
 )
 
+vulkan_dep = dependency('vulkan')
+
 cwalk_dep = dependency('cwalk', fallback: ['cwalk', 'cwalk_dep'])
 yyjson_dep = dependency('yyjson', fallback: ['yyjson', 'yyjson_dep'])
 
 dependencies = [
   wayland_client,
   cwalk_dep,
-  yyjson_dep
+  yyjson_dep,
+  vulkan_dep
 ]
 
 sources = files(
@@ -66,6 +73,8 @@ sources = files(
   'src/events.c',
   'src/window.c',
   'src/ipc.c',
+  'src/renderer/instance.c',
+  'src/renderer/renderer.c',
 )
 
 exec = executable(

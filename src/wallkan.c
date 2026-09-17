@@ -9,6 +9,7 @@
 #include "err.h"
 #include "events.h"
 #include "ipc.h"
+#include "renderer/renderer.h"
 #include "window.h"
 
 enum {
@@ -98,13 +99,16 @@ main(void)
     wkres = wk_ev_handler_init(&wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
+    wkres = wk_ipc_init(&wk.ipc, &wk.event_handler);
+    if(wkres != WK_OK) goto cleanup;
+
     wkres = bind_all_events(&wk);
     if(wkres != WK_OK) goto cleanup;
 
     wkres = wk_window_init(&wk.window, &wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
-    wkres = wk_ipc_init(&wk.ipc, &wk.event_handler);
+    wkres = wk_renderer_init(&wk.renderer, &wk.window);
     if(wkres != WK_OK) goto cleanup;
 
     // Polling
@@ -143,6 +147,7 @@ main(void)
         if (wkres != WK_OK) goto cleanup;
     }
 cleanup:
+    wk_renderer_cleanup(&wk.renderer);
     wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);
     wk_ev_handler_cleanup(&wk.event_handler);

@@ -3,10 +3,12 @@
 #include <stdbool.h>
 #include "events.h"
 #include "ipc.h"
+#include "renderer/renderer.h"
 #include "window.h"
 
 typedef struct Wallkan {
     WallkanWindow       window;
+    WallkanRenderer     renderer;
     WallkanEventHandler event_handler;
     WallkanIpc          ipc;
     bool                running;
