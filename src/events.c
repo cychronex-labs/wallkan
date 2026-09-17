@@ -9,7 +9,7 @@ wk_ev_handler_init(WallkanEventHandler *wk_ev_handler)
     *wk_ev_handler = (WallkanEventHandler){0};
     wk_ev_handler->events = malloc(QUEUE_SIZE * sizeof(WkEvent));
     if(!wk_ev_handler->events){
-        return WK_ERR(WK_ERR_ALLOCATION_ERROR, "Failed to malloc!");
+        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to malloc!");
     }
     wk_ev_handler->events_capacity = QUEUE_SIZE;
     return WK_OK;
@@ -69,7 +69,7 @@ wk_ev_handler_emit(WallkanEventHandler *wk_ev_handler, const WkEvent *event)
         void *tmp = realloc(wk_ev_handler->events,
             (wk_ev_handler->events_capacity+QUEUE_SIZE) * sizeof(WkEvent));
         if(!tmp){
-            return WK_ERR(WK_ERR_ALLOCATION_ERROR, "Failed to realloc!");
+            return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to realloc!");
         }
         wk_ev_handler->events_capacity+=QUEUE_SIZE;
         wk_ev_handler->events = tmp;

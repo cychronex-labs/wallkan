@@ -184,16 +184,16 @@ wk_ipc_init_cmd_processor(WallkanIpc *wk_ipc)
 
     wk_ipc->cmd_processor.json_mem = malloc(wk_ipc->cmd_processor.json_pool_size * 2);
     if(!wk_ipc->cmd_processor.json_mem){
-        return WK_ERR(WK_ERR_ALLOCATION_ERROR, "Failed to malloc!");
+        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to malloc!");
     }
     if(!yyjson_alc_pool_init(&wk_ipc->cmd_processor.json_parse_alc, wk_ipc->cmd_processor.json_mem,
         wk_ipc->cmd_processor.json_pool_size)){
-            return WK_ERR(WK_ERR_ALLOCATION_ERROR, "Failed to init yyjson pool!");
+            return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to init yyjson pool!");
     }
     void *next_block = (uint8_t*)wk_ipc->cmd_processor.json_mem + wk_ipc->cmd_processor.json_pool_size;
     if(!yyjson_alc_pool_init(&wk_ipc->cmd_processor.json_reply_alc,next_block,
         wk_ipc->cmd_processor.json_pool_size)){
-            return WK_ERR(WK_ERR_ALLOCATION_ERROR, "Failed to init yyjson pool!");
+            return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to init yyjson pool!");
     }
     return WK_OK;
 }

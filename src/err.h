@@ -1,9 +1,10 @@
 #ifndef WALLKAN_ERR_H
 #define WALLKAN_ERR_H
 
+#include <vulkan/vulkan_core.h>
 typedef enum WkResult {
     WK_OK,
-    WK_ERR_ALLOCATION_ERROR,
+    WK_ERR_ALLOCATION_FAILURE,
     WK_ERR_POLL_FAILURE,
 
     WK_ERR_EVENT_HANDLER_UNKNOWN_EVENT,
@@ -38,8 +39,8 @@ wk_log_error(WkResult code, const char *code_name, const char *file, int line, c
 
 #define WK_TRY(expr) \
     do {\
-        WkResult _res = (expr);\
-        if(_res != WK_OK) return _res;\
+        WkResult _wkres = (expr);\
+        if(_wkres != WK_OK) return _wkres;\
     } while(0)
 
 #endif
