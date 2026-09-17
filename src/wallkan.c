@@ -101,7 +101,7 @@ main(void)
     wkres = bind_all_events(&wk);
     if(wkres != WK_OK) goto cleanup;
 
-    wkres = window_init(&wk.window, &wk.event_handler);
+    wkres = wk_window_init(&wk.window, &wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
     wkres = wk_ipc_init(&wk.ipc, &wk.event_handler);
@@ -112,11 +112,11 @@ main(void)
     setup_polling(&wk, poll_fds);
 
     // Request the first frame
-    wkres = window_request_frame(&wk.window);
+    wkres = wk_window_request_frame(&wk.window);
     if (wkres != WK_OK) goto cleanup;
 
     while(wk.running){
-        wkres = window_wl_prepare_read(&wk.window);
+        wkres = wk_window_wl_prepare_read(&wk.window);
         if(wkres != WK_OK) goto cleanup;
 
         if(poll(poll_fds, POLL_COUNT, -1) < 0){
@@ -139,12 +139,11 @@ main(void)
         wk.window.frame_ready = false;
         LOG("Vsync frame. Timestamp: %u", wk.window.frame_time_ms);
         // Request the next frame
-        wkres = window_request_frame(&wk.window);
+        wkres = wk_window_request_frame(&wk.window);
         if (wkres != WK_OK) goto cleanup;
     }
 cleanup:
-    window_cleanup(&wk.window);
-
+    wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);
     wk_ev_handler_cleanup(&wk.event_handler);
     return (wkres == WK_OK) ? EXIT_SUCCESS : EXIT_FAILURE;

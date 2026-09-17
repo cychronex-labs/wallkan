@@ -39,12 +39,12 @@ typedef struct WallkanWindow{
     uint32_t            frame_time_ms;
 } WallkanWindow;
 
-WkResult window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler);
+WkResult wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler);
 
-WkResult window_wl_prepare_read(WallkanWindow *wk_win);
+WkResult wk_window_wl_prepare_read(WallkanWindow *wk_win);
 
-WkResult window_request_frame(WallkanWindow *win);
+WkResult wk_window_request_frame(WallkanWindow *win);
 
-void window_cleanup(WallkanWindow *wk_win);
+void wk_window_cleanup(WallkanWindow *wk_win);
 
 #endif

@@ -312,7 +312,7 @@ setup_zwlr_layer_surface(WallkanWindow *wk_win)
 
 // Global functions
 WkResult
-window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
+wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
 {
     wk_win->wk_ev_handler = wk_ev_handler;
     WK_TRY(connect_wayland_display(wk_win));
@@ -324,7 +324,7 @@ window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
 }
 
 WkResult
-window_wl_prepare_read(WallkanWindow *wk_win)
+wk_window_wl_prepare_read(WallkanWindow *wk_win)
 {
     while (wl_display_prepare_read(wk_win->display) != 0) {
         if(errno != EAGAIN) goto err;
@@ -338,11 +338,11 @@ window_wl_prepare_read(WallkanWindow *wk_win)
 
 err:
     return WK_ERR(WK_ERR_WL_COMPOSITOR_DISCONNECTED,
-        "Wayland compositor crashed on window_wl_prepare_read!");
+        "Wayland compositor crashed on wk_window_wl_prepare_read!");
 }
 
 WkResult
-window_request_frame(WallkanWindow *win)
+wk_window_request_frame(WallkanWindow *win)
 {
     if (win->frame_cb != NULL) {
         return WK_OK;
@@ -357,7 +357,7 @@ window_request_frame(WallkanWindow *win)
 }
 
 void
-window_cleanup(WallkanWindow *wk_win)
+wk_window_cleanup(WallkanWindow *wk_win)
 {
     if(wk_win->frame_cb){
         LOG("window_cleanup: Destroy frame callback...");
