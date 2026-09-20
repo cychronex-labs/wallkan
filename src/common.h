@@ -1,5 +1,6 @@
 #ifndef WALLKAN_COMMON_H
 #define WALLKAN_COMMON_H
+#include <stdint.h>
 #include <stdio.h>
 #ifndef COLOR_RESET
     #define COLOR_ERR "\x1b[38;5;196m"
@@ -9,6 +10,12 @@
     #define COLOR_TERTIARY "\x1b[38;5;238m"
     #define COLOR_RESET "\x1b[0m"
 #endif
+
+static inline uint32_t bit_pop_lsb(uint8_t *mask) {
+    uint32_t idx = (uint8_t)__builtin_ctz(*mask);
+    *mask &= (*mask - 1);
+    return idx;
+}
 
 #define LOG(fmt, ...) \
     fprintf(stderr, COLOR_SECONDARY "[%s:%d] " COLOR_RESET COLOR_PRIMARY fmt COLOR_RESET "\n", \

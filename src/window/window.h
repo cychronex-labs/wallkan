@@ -5,21 +5,20 @@
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include <linux/input-event-codes.h>
+#include "window/outputs.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
-#include "events.h"
 
+typedef struct WallkanEventHandler WallkanEventHandler;
 typedef struct WallkanWindow{
-    struct wl_display    *display;
-    struct wl_registry   *registry;
-    struct wl_surface    *surface;
+    WallkanOutput wk_outputs[MAX_OUTPUTS];
+    uint8_t output_frame_ready_mask;
+    uint8_t output_is_active_mask;
+
+    struct wl_display *display;
+    struct wl_registry *registry;
     struct wl_compositor *compositor;
-    struct wl_seat       *wl_seat;
-    struct {
-        struct zwlr_layer_shell_v1   *shell;
-        struct zwlr_layer_surface_v1 *surface;
-        uint32_t                      width;
-        uint32_t                      height;
-    } zwlr_layer;
+    struct wl_seat *wl_seat;
+    struct zwlr_layer_shell_v1 *layer_shell;
     struct {
         struct wl_pointer *mouse;
     } seat_caps;
@@ -34,16 +33,13 @@ typedef struct WallkanWindow{
     // Passing a separate struct for each callback function seemed inconvenient
     // EventHandler is a subsystem owned by the Root Struct
     WallkanEventHandler *wk_ev_handler;
-    struct wl_callback *frame_cb;
-    bool                frame_ready;
-    uint32_t            frame_time_ms;
 } WallkanWindow;
 
 WkResult wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler);
 
 WkResult wk_window_wl_prepare_read(WallkanWindow *wk_win);
 
-WkResult wk_window_request_frame(WallkanWindow *win);
+void wk_window_request_all_frames(WallkanWindow *wk_window);
 
 void wk_window_cleanup(WallkanWindow *wk_win);
 

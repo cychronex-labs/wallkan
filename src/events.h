@@ -2,6 +2,8 @@
 #define WALLKAN_EVENT_HANDLER_H
 #include <stdint.h>
 #include "err.h"
+#include "window/outputs.h"
+
 #define QUEUE_SIZE 16
 #define MAX_CALLBACK_SLOTS 4
 
@@ -9,18 +11,41 @@ typedef enum WkEventType {
     WK_EVENT_NONE = 0,
     WK_EVENT_RESIZE,
     WK_EVENT_CLOSE,
+    WK_EVENT_IPC_COMMAND,
+    WK_EVENT_ENABLE_OUTPUT,
     WK_EVENT_TYPE_COUNT
 } WkEventType;
 
 typedef struct WkResizeEvent {
+    WallkanOutput *wk_output;
     uint32_t width;
     uint32_t height;
 } WkResizeEvent;
 
+typedef struct WallkanIpc WallkanIpc;
+typedef struct WkCloseEvent {
+    WallkanIpc *wk_ipc;
+    WallkanOutput *wk_output;
+} WkCloseEvent;
+
+typedef struct WkEnableOutputEvent {
+    WallkanIpc *wk_ipc;
+    WallkanWindow *wk_window;
+    WallkanOutput *wk_output;
+} WkEnableOutputEvent;
+
+typedef struct WkIPCCommandEvent {
+    WallkanIpc *wk_ipc;
+    int cmd_code;
+} WkIPCCommandEvent;
+
 typedef struct WkEvent {
     WkEventType type;
     union {
+        WkIPCCommandEvent ipc_cmd_event;
+        WkEnableOutputEvent enable_output_event;
         WkResizeEvent resize_event;
+        WkCloseEvent close_event;
     };
 } WkEvent;
 

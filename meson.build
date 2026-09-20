@@ -71,10 +71,13 @@ sources = files(
   'src/wallkan.c',
   'src/err.c',
   'src/events.c',
-  'src/window.c',
+  'src/window/window.c',
+  'src/window/outputs.c',
   'src/ipc.c',
   'src/renderer/instance.c',
+  'src/renderer/device.c',
   'src/renderer/renderer.c',
+  'src/renderer/swapchain.c',
 )
 
 exec = executable(

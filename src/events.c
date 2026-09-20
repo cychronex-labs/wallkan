@@ -64,8 +64,7 @@ wk_ev_handler_emit(WallkanEventHandler *wk_ev_handler, const WkEvent *event)
         return WK_ERR(WK_ERR_EVENT_HANDLER_UNKNOWN_EVENT,
             "Unknown event type: %d!", event->type);
     }
-    uint32_t event_len = wk_ev_handler->events_length+1;
-    if(event_len >= wk_ev_handler->events_capacity){
+    if(wk_ev_handler->events_length >= wk_ev_handler->events_capacity){
         void *tmp = realloc(wk_ev_handler->events,
             (wk_ev_handler->events_capacity+QUEUE_SIZE) * sizeof(WkEvent));
         if(!tmp){
@@ -74,6 +73,7 @@ wk_ev_handler_emit(WallkanEventHandler *wk_ev_handler, const WkEvent *event)
         wk_ev_handler->events_capacity+=QUEUE_SIZE;
         wk_ev_handler->events = tmp;
     }
+    uint32_t event_len = wk_ev_handler->events_length+1;
     wk_ev_handler->events[wk_ev_handler->events_length] = *event;
     wk_ev_handler->events_length = event_len;
     return WK_OK;

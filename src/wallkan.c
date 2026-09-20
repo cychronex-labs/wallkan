@@ -10,11 +10,13 @@
 #include "events.h"
 #include "ipc.h"
 #include "renderer/renderer.h"
-#include "window.h"
+#include "window/outputs.h"
+#include "window/window.h"
 
 enum {
     POLL_WAYLAND = 0,
-    POLL_IPC,
+    POLL_IPC_SERVER,
+    POLL_IPC_CLIENT,
     POLL_COUNT,
 };
 
@@ -34,9 +36,13 @@ setup_polling(Wallkan *wk, struct pollfd *poll_fds)
         .fd = wl_display_get_fd(wk->window.display),
         .events = POLLIN
     };
-    poll_fds[POLL_IPC] = (struct pollfd){
+    poll_fds[POLL_IPC_SERVER] = (struct pollfd){
         .fd = wk->ipc.server_fd,
         .events = POLLIN
+    };
+    poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
+        .fd = -1,
+        .events = 0
     };
 }
 
@@ -69,10 +75,47 @@ check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
 static void
 check_for_ipc_events(Wallkan *wk, struct pollfd *poll_fds)
 {
-    if (poll_fds[POLL_IPC].revents & POLLIN) {
+    if (poll_fds[POLL_IPC_SERVER].revents & POLLIN) {
         WkResult wkres = wk_ipc_handle_connection(&wk->ipc);
+        poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
+            .fd = wk->ipc.client_fd,
+            .events = 0
+        };
         if(wkres != WK_OK) WARN("check_for_ipc_events: Client connection aborted with code %d", wkres);
     }
+    if (poll_fds[POLL_IPC_CLIENT].revents & (POLLHUP | POLLERR)) {
+        wk_ipc_clean_client_data(&wk->ipc);
+        poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
+            .fd = -1
+        };
+    }
+}
+
+static WkResult
+handle_ipc_cmd(const WkEvent *event, void *data)
+{
+    Wallkan *wk = (Wallkan*)data;
+    switch (event->ipc_cmd_event.cmd_code){
+        case WK_IPC_COMMAND_CODE_QUIT:
+            if(wk_ipc_reply_pending(event->ipc_cmd_event.wk_ipc)) {
+                wk_ipc_reply(event->ipc_cmd_event.wk_ipc, &(WkIPCReply){
+                    .reply_code = WK_IPC_REPLY_OK,
+                    .message = "Successfully closed daemon"
+                });
+            }
+            exit_wallkan(NULL, wk);
+            break;
+        default:
+            WARN("handle_ipc_cmd: Received unknown command code %d in WkIPCCommandEvent",
+                event->ipc_cmd_event.cmd_code);
+            if(wk_ipc_reply_pending(event->ipc_cmd_event.wk_ipc)) {
+                wk_ipc_reply(event->ipc_cmd_event.wk_ipc, &(WkIPCReply){
+                    .reply_code = WK_IPC_REPLY_INTERNAL_ERROR,
+                    .message = "Internal error occurred! IPC command handler got unknown command code"
+                });
+            }
+    }
+    return WK_OK;
 }
 
 static WkResult
@@ -81,6 +124,12 @@ bind_all_events(Wallkan *wk)
     WK_TRY(wk_ev_handler_bind(&wk->event_handler, WK_EVENT_CLOSE, NULL,
         &(WkEventCallback){
             .callback = exit_wallkan,
+            .data = wk
+        }
+    ));
+    WK_TRY(wk_ev_handler_bind(&wk->event_handler, WK_EVENT_IPC_COMMAND, NULL,
+        &(WkEventCallback){
+            .callback = handle_ipc_cmd,
             .data = wk
         }
     ));
@@ -115,11 +164,9 @@ main(void)
     struct pollfd poll_fds[POLL_COUNT] = {0};
     setup_polling(&wk, poll_fds);
 
-    // Request the first frame
-    wkres = wk_window_request_frame(&wk.window);
-    if (wkres != WK_OK) goto cleanup;
-
+    wk_window_request_all_frames(&wk.window);
     while(wk.running){
+        poll_fds[POLL_IPC_CLIENT].fd = wk.ipc.client_fd;
         wkres = wk_window_wl_prepare_read(&wk.window);
         if(wkres != WK_OK) goto cleanup;
 
@@ -139,15 +186,14 @@ main(void)
         wkres = wk_ev_handler_dispatch(&wk.event_handler);
         if(wkres != WK_OK) goto cleanup;
 
-        if (!wk.window.frame_ready) continue;
-        wk.window.frame_ready = false;
-        LOG("Vsync frame. Timestamp: %u", wk.window.frame_time_ms);
+        if (wk.window.output_frame_ready_mask == 0) continue;
+
         // Request the next frame
-        wkres = wk_window_request_frame(&wk.window);
+        wkres = wk_renderer_render(&wk.renderer, &wk.window);
         if (wkres != WK_OK) goto cleanup;
     }
 cleanup:
-    wk_renderer_cleanup(&wk.renderer);
+    wk_renderer_cleanup(&wk.renderer, &wk.window);
     wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);
     wk_ev_handler_cleanup(&wk.event_handler);

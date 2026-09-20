@@ -3,11 +3,13 @@
 // 1. Wayland setup code
 // 2. Wayland event broadcasting
 #include <errno.h>
+#include <stdint.h>
 #include <string.h>
+#include <sys/types.h>
 #include "common.h"
 #include "err.h"
-#include "events.h"
-#include "window.h"
+#include "window/outputs.h"
+#include "window/window.h"
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -125,47 +127,6 @@ struct wl_seat_listener wl_seat_listener_struct = {
     .capabilities = &cb_on_wl_seat_capability,
     .name = &cb_on_wl_seat_name
 };
-// Wayland zwlr layer callbacks & listeners
-static void
-cb_on_layer_configure(void *data, struct zwlr_layer_surface_v1 *zwlr_layer_surface_v1,
-    uint32_t serial, uint32_t width, uint32_t height)
-{
-    (void)zwlr_layer_surface_v1;
-    WallkanWindow *wk_win = (WallkanWindow*)data;
-    if(wk_win->zwlr_layer.width != width || wk_win->zwlr_layer.height != height){
-        if(wk_win->zwlr_layer.width != 0 && wk_win->zwlr_layer.height != 0){
-            WkEvent event = {
-                .type = WK_EVENT_RESIZE,
-                .resize_event = (WkResizeEvent){
-                    .width = width,
-                    .height = height,
-                }
-            };
-            wk_ev_handler_emit(wk_win->wk_ev_handler, &event);
-        }
-        wk_win->zwlr_layer.width = width;
-        wk_win->zwlr_layer.height = height;
-    }
-    zwlr_layer_surface_v1_ack_configure(wk_win->zwlr_layer.surface, serial);
-    LOG("(CB)on_layer_configure: Acknowledged layer configuration @%dx%d", width, height);
-}
-
-static void
-cb_on_layer_closed(void *data, struct zwlr_layer_surface_v1 *zwlr_layer_surface_v1)
-{
-    (void)zwlr_layer_surface_v1;
-    WallkanWindow *wk_win = (WallkanWindow*)data;
-    WkEvent event = {
-        .type = WK_EVENT_CLOSE
-    };
-    wk_ev_handler_emit(wk_win->wk_ev_handler, &event);
-    LOG("(CB)cb_on_layer_closed: ZWLR layer closed!");
-}
-
-struct zwlr_layer_surface_v1_listener zwlr_layer_surface_listener = {
-    .configure = cb_on_layer_configure,
-    .closed    = cb_on_layer_closed
-};
 
 // Wayland registry callbacks % listener
 static void
@@ -176,15 +137,15 @@ cb_registry_global(void *data, struct wl_registry *wl_registry, uint32_t name,
     WallkanWindow *wk_win = (WallkanWindow*)data;
     LOG("(CB)registry_global: name: %d - interface: %s - version: %d", name, interface, version);
     if(strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0){
-        wk_win->zwlr_layer.shell = wl_registry_bind(wk_win->registry, name,
+        wk_win->layer_shell = wl_registry_bind(wk_win->registry, name,
             &zwlr_layer_shell_v1_interface,
             MIN(zwlr_layer_shell_v1_interface.version, (int)version));
-        LOG("cb_registry_global: Bind registry zwlr_layer_shell...");
+        LOG("(CB)registry_global: Bind registry zwlr_layer_shell...");
     }
     if(strcmp(interface, wl_compositor_interface.name) == 0){
         wk_win->compositor = wl_registry_bind(wk_win->registry, name,&wl_compositor_interface,
             MIN(wl_compositor_interface.version, (int)version));
-        LOG("cb_registry_global: Bind registry wl_compositor!");
+        LOG("(CB)registry_global: Bind registry wl_compositor!");
     }
     if(strcmp(interface, wl_seat_interface.name) == 0){
         // Why 5 here? Apparently using the usual MIN resulted in:
@@ -195,30 +156,30 @@ cb_registry_global(void *data, struct wl_registry *wl_registry, uint32_t name,
         wl_seat_add_listener(wk_win->wl_seat, &wl_seat_listener_struct, wk_win);
         LOG("(CB)registry_global: Bind registry wl_seat!");
     }
+    if (strcmp(interface, wl_output_interface.name) == 0) {
+        LOG("(CB)registry_global: Found output (name %u)", name);
+        WkResult wkres = wk_output_add(wk_win, name, version);
+        if(wkres == WK_ERR_MAX_AMOUNT_MONITORS){
+            WARN("(CB)registry_global: Maximum supported amount of monitors reached. Monitor %u will be ignored!", name);
+        }
+    }
 }
 static void
 cb_registry_global_remove(void *data, struct wl_registry *wl_registry, uint32_t name)
 {
     (void)wl_registry;
-    (void)data;
-    LOG("(CB)registry_global_remove: name: %d", name);
+    WallkanWindow *wk_window = (WallkanWindow*)data;
+    for (uint32_t i=0; i<MAX_OUTPUTS; i++) {
+        WallkanOutput *wk_output = &wk_window->wk_outputs[i];
+        if (wk_output->registry_id == name) {
+            wk_output_cleanup(wk_output);
+            break;
+        }
+    }
 }
 static struct wl_registry_listener registry_listener = {
     .global = &cb_registry_global,
     .global_remove = &cb_registry_global_remove
-};
-
-static void
-cb_on_frame_done(void *data, struct wl_callback *cb, uint32_t time)
-{
-    WallkanWindow *win = (WallkanWindow *)data;
-    wl_callback_destroy(cb);
-    win->frame_cb = NULL;
-    win->frame_ready = true;
-    win->frame_time_ms = time;
-}
-static const struct wl_callback_listener frame_listener = {
-    .done = cb_on_frame_done,
 };
 
 // Helper functions
@@ -245,7 +206,11 @@ setup_registry(WallkanWindow *wk_win)
     wl_registry_add_listener(wk_win->registry, &registry_listener, wk_win);
     if(wl_display_roundtrip(wk_win->display) == -1){
         return WK_ERR(WK_ERR_WL_REGISTRY_ROUNDTRIP_FAILURE,
-            "Wayland display roundtrip has failed during listening registry event!");
+            "Wayland display roundtrip 1 has failed during listening events!");
+    };
+    if(wl_display_roundtrip(wk_win->display) == -1){
+        return WK_ERR(WK_ERR_WL_REGISTRY_ROUNDTRIP_FAILURE,
+            "Wayland display roundtrip 2 has failed during listening events!");
     };
     return WK_OK;
 }
@@ -258,7 +223,7 @@ validate_registry(WallkanWindow *wk_win)
         return WK_ERR(WK_ERR_WL_GLOBAL_COMPOSITOR_UNDEFINED,
             "Broken wayland compositor, wl_compositor was not announced!");
     }
-    if(wk_win->zwlr_layer.shell == NULL){
+    if(wk_win->layer_shell == NULL){
         return WK_ERR(WK_ERR_WL_GLOBAL_LAYER_SHELL_UNDEFINED,
             "Support for compositors that do not have zwlr-layer-shell is underway!");
     }
@@ -269,46 +234,7 @@ validate_registry(WallkanWindow *wk_win)
     return WK_OK;
 }
 
-static WkResult
-setup_wayland_surface(WallkanWindow *wk_win)
-{
-    LOG("setup_wl_surface: Setting up wayland surface...");
-    wk_win->surface = wl_compositor_create_surface(wk_win->compositor);
-    if(!wk_win->surface){
-        return WK_ERR(WK_ERR_WL_SURFACE_CREATION_FAILURE, "Failed to create wl_surface!");
-    }
-    return WK_OK;
-}
 
-static WkResult
-setup_zwlr_layer_surface(WallkanWindow *wk_win)
-{
-    // Layer Surface initialization
-    LOG("setup_zwlr_layer_surface: Assigning Background role to wl_surface");
-    wk_win->zwlr_layer.surface = zwlr_layer_shell_v1_get_layer_surface(wk_win->zwlr_layer.shell,
-        wk_win->surface, NULL, ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "wallkan");
-    if(!wk_win->zwlr_layer.surface){
-        return WK_ERR(WK_ERR_WL_ZWLR_LAYER_SURFACE_ROLE_FAILURE,
-            "Couldn't assign background role to surface!");
-    }
-
-    zwlr_layer_surface_v1_add_listener(wk_win->zwlr_layer.surface, &zwlr_layer_surface_listener,
-        wk_win);
-    uint32_t anchor = ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
-                      ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
-                      ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
-                      ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM;
-    zwlr_layer_surface_v1_set_anchor(wk_win->zwlr_layer.surface, anchor);
-    zwlr_layer_surface_v1_set_size(wk_win->zwlr_layer.surface, 0, 0);
-    zwlr_layer_surface_v1_set_exclusive_zone(wk_win->zwlr_layer.surface, -1);
-    wl_surface_commit(wk_win->surface);
-    if (wl_display_roundtrip(wk_win->display) == -1){
-        return WK_ERR(WK_ERR_WL_DISPLAY_ROUNDTRIP_FAILURE,
-            "Wayland display roundtrip has failed during layer surface initialization event!");
-    }
-    LOG("setup_zwlr_layer_surface: Finished setting up zwlr layer surface!");
-    return WK_OK;
-}
 
 // Global functions
 WkResult
@@ -318,8 +244,6 @@ wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
     WK_TRY(connect_wayland_display(wk_win));
     WK_TRY(setup_registry(wk_win));
     WK_TRY(validate_registry(wk_win));
-    WK_TRY(setup_wayland_surface(wk_win));
-    WK_TRY(setup_zwlr_layer_surface(wk_win));
     return WK_OK;
 }
 
@@ -341,29 +265,20 @@ err:
         "Wayland compositor crashed on wk_window_wl_prepare_read!");
 }
 
-WkResult
-wk_window_request_frame(WallkanWindow *win)
+void
+wk_window_request_all_frames(WallkanWindow *wk_window)
 {
-    if (win->frame_cb != NULL) {
-        return WK_OK;
+    uint8_t active_mask = wk_window->output_is_active_mask;
+    // Iterate maximum until all bits are zero
+    while (active_mask != 0) {
+        uint32_t output_idx = bit_pop_lsb(&active_mask);
+        wk_output_request_frame(&wk_window->wk_outputs[output_idx]);
     }
-    win->frame_cb = wl_surface_frame(win->surface);
-    if (!win->frame_cb) {
-        return WK_ERR(WK_ERR_WL_FRAME_CALLBACK_FAILED, "Failed to create wl_surface_frame");
-    }
-    wl_callback_add_listener(win->frame_cb, &frame_listener, win);
-    wl_surface_commit(win->surface);
-    return WK_OK;
 }
 
 void
 wk_window_cleanup(WallkanWindow *wk_win)
 {
-    if(wk_win->frame_cb){
-        LOG("window_cleanup: Destroy frame callback...");
-        wl_callback_destroy(wk_win->frame_cb);
-        wk_win->frame_cb = NULL;
-    }
     if (wk_win->seat_caps.mouse) {
         LOG("window_cleanup: Releasing mouse pointer...");
         wl_pointer_release(wk_win->seat_caps.mouse);
@@ -374,20 +289,13 @@ wk_window_cleanup(WallkanWindow *wk_win)
         wl_seat_release(wk_win->wl_seat);
         wk_win->wl_seat = NULL;
     }
-    if(wk_win->zwlr_layer.surface){
-        LOG("window_cleanup: Destroying ZWLR layer surface...");
-        zwlr_layer_surface_v1_destroy(wk_win->zwlr_layer.surface);
-        wk_win->zwlr_layer.surface = NULL;
+    for (uint32_t i=0; i<MAX_OUTPUTS; i++) {
+        wk_output_cleanup(&wk_win->wk_outputs[i]);
     }
-    if(wk_win->surface){
-        LOG("window_cleanup: Destroying Wayland surface...");
-        wl_surface_destroy(wk_win->surface);
-        wk_win->surface = NULL;
-    }
-    if(wk_win->zwlr_layer.shell){
+    if(wk_win->layer_shell){
         LOG("window_cleanup: Destroying wlr_layer_shell...");
-        zwlr_layer_shell_v1_destroy(wk_win->zwlr_layer.shell);
-        wk_win->zwlr_layer.shell = NULL;
+        zwlr_layer_shell_v1_destroy(wk_win->layer_shell);
+        wk_win->layer_shell = NULL;
     }
     if(wk_win->registry){
         LOG("window_cleanup: Destroying wayland registry...");

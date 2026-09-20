@@ -4,7 +4,7 @@
 #include "events.h"
 #include "ipc.h"
 #include "renderer/renderer.h"
-#include "window.h"
+#include "window/window.h"
 
 typedef struct Wallkan {
     WallkanWindow       window;

@@ -7,7 +7,7 @@
 #include <vulkan/vulkan.h>
 #include "common.h"
 #include "err.h"
-#include "window.h"
+#include "window/window.h"
 #include "renderer/instance.h"
 
 struct ExtensionList {
@@ -188,19 +188,20 @@ setup_debug_messenger(WallkanInstance *wk_instance)
         return wkres;
 }
 
-static WkResult
-wk_instance_init_surface(WallkanInstance *wk_instance, const WallkanWindow *wk_window)
+WkResult
+wk_instance_init_surface(WallkanInstance *wk_instance, const WallkanWindow *wk_window,
+    WallkanOutput *wk_output, VkSurfaceKHR *vk_surface)
 {
     LOG("wk_instance_init_surface: Creating vulkan surface for wayland..");
     VkWaylandSurfaceCreateInfoKHR wl_surface_create_info = {
         .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
         .display = wk_window->display,
-        .surface = wk_window->surface,
+        .surface = wk_output->surface,
     };
 
     WK_TRY(EXPECT_VK(
         vkCreateWaylandSurfaceKHR(wk_instance->vk_instance,
-            &wl_surface_create_info, NULL, &wk_instance->vk_surface),
+            &wl_surface_create_info, NULL, vk_surface),
         WK_ERR_VK_WL_SURFACE_CREATION_FAILURE, "Failed to create Vulkan Wayland WSI surface!"
     ));
     return WK_OK;
@@ -228,7 +229,7 @@ enable_extensions(VkInstanceCreateInfo *instance_create_info, struct ExtensionLi
 }
 
 WkResult
-wk_instance_init(WallkanInstance *wk_instance, const WallkanWindow *wk_window)
+wk_instance_init(WallkanInstance *wk_instance)
 {
     LOG("wk_instance_init: Initializing vulkan instance...");
     VkApplicationInfo app_info = {
@@ -268,19 +269,12 @@ wk_instance_init(WallkanInstance *wk_instance, const WallkanWindow *wk_window)
     if(ext_list.debug_utils)
         WK_TRY(setup_debug_messenger(wk_instance));
 
-    WK_TRY(wk_instance_init_surface(wk_instance, wk_window));
-
     return WK_OK;
 }
 
 void
 wk_instance_cleanup(WallkanInstance *wk_instance)
 {
-    if(wk_instance->vk_surface != VK_NULL_HANDLE){
-        LOG("wk_instance_cleanup: Destroying vulkan KHR surface...");
-        vkDestroySurfaceKHR(wk_instance->vk_instance, wk_instance->vk_surface, NULL);
-        wk_instance->vk_surface = VK_NULL_HANDLE;
-    }
     if(wk_instance->debug_messenger != VK_NULL_HANDLE){
         LOG("wk_instance_cleanup: Retrieving address of vkDestroyDebugUtilsMessengerEXT...");
         PFN_vkDestroyDebugUtilsMessengerEXT vk_debug_destroy_func = NULL;
