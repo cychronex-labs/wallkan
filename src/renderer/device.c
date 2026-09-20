@@ -1,3 +1,4 @@
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/instance.h"
@@ -10,8 +11,8 @@
 #include <vulkan/vulkan_core.h>
 
 static WkResult
-scan_physical_devices_alloc(const WallkanInstance *wk_instance, VkPhysicalDevice **out_devices,
-    uint32_t *total_devices)
+scan_physical_devices(ArenaAllocator *alloc, const WallkanInstance *wk_instance,
+    VkPhysicalDevice **out_devices, uint32_t *total_devices)
 {
     *out_devices = NULL;
     WK_TRY(EXPECT_VK(
@@ -22,7 +23,7 @@ scan_physical_devices_alloc(const WallkanInstance *wk_instance, VkPhysicalDevice
         return WK_ERR(WK_ERR_VK_NO_PHYSICAL_DEVICE_FOUND,
             "Are you running this on a server with no GPU?");
     }
-    *out_devices = malloc(sizeof(VkPhysicalDevice) * (*total_devices));
+    *out_devices = arena_alloc(alloc, sizeof(VkPhysicalDevice) * (*total_devices));
     if (!*out_devices) {
         return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
     }
@@ -86,7 +87,7 @@ check_device_features(const VkPhysicalDevice physical_device)
 }
 
 static WkResult
-scan_device_extensions_alloc(const VkPhysicalDevice physical_device,
+scan_device_extensions(ArenaAllocator *alloc, const VkPhysicalDevice physical_device,
     VkExtensionProperties **out_extension_props, uint32_t *total_extensions)
 {
     WkResult wkres;
@@ -96,7 +97,7 @@ scan_device_extensions_alloc(const VkPhysicalDevice physical_device,
     );
     if(wkres != WK_OK) goto err;
 
-    *out_extension_props = malloc(sizeof(VkExtensionProperties) * (*total_extensions));
+    *out_extension_props = arena_alloc(alloc, sizeof(VkExtensionProperties) * (*total_extensions));
     if (!*out_extension_props) {
         return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
     }
@@ -109,7 +110,6 @@ scan_device_extensions_alloc(const VkPhysicalDevice physical_device,
 
     return WK_OK;
 err:
-    free(*out_extension_props);
     return wkres;
 }
 
@@ -140,7 +140,8 @@ check_device_extensions(WallkanDevice *device,
 }
 
 static WkResult
-get_device_queue_data(WallkanDevice *wk_device, VkSurfaceKHR vk_surface)
+get_device_queue_data(ArenaAllocator *alloc, WallkanDevice *wk_device,
+    VkSurfaceKHR vk_surface)
 {
     WkResult wkres = WK_OK;
     // Zero initialization sets everything 0 which technically could be a valid index
@@ -158,8 +159,8 @@ get_device_queue_data(WallkanDevice *wk_device, VkSurfaceKHR vk_surface)
     vkGetPhysicalDeviceQueueFamilyProperties2(wk_device->physical_device,
         &queue_family_count, NULL);
 
-    video_props = malloc(sizeof(VkQueueFamilyVideoPropertiesKHR) * queue_family_count);
-    family_props2 = malloc(sizeof(VkQueueFamilyProperties2) * queue_family_count);
+    video_props = arena_alloc(alloc, sizeof(VkQueueFamilyVideoPropertiesKHR) * queue_family_count);
+    family_props2 = arena_alloc(alloc, sizeof(VkQueueFamilyProperties2) * queue_family_count);
     if(!video_props || !family_props2){
         WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
         goto err;
@@ -217,24 +218,19 @@ get_device_queue_data(WallkanDevice *wk_device, VkSurfaceKHR vk_surface)
             }
         }
     }
-    free(video_props);
-    free(family_props2);
     return WK_OK;
 err:
-    free(video_props);
-    free(family_props2);
     return wkres;
 }
 
 static WkResult
-choose_device(const VkPhysicalDevice *devices, uint32_t total_devices,
+choose_device(ArenaAllocator *alloc, const VkPhysicalDevice *devices, uint32_t total_devices,
     WallkanDevice *out_wk_device, VkSurfaceKHR first_vk_surface)
 {
-    // So we can free even on failure
-    VkExtensionProperties *extension_props = NULL;
     uint32_t total_extensions = 0;
     bool found_supported = false;
     for (uint32_t i=0; i<total_devices; i++) {
+        VkExtensionProperties *extension_props = NULL;
         VkPhysicalDevice physical_device = devices[i];
         WallkanDevice device = {
             .physical_device = physical_device
@@ -246,17 +242,15 @@ choose_device(const VkPhysicalDevice *devices, uint32_t total_devices,
         if(!supported) continue;
         // Extensions
 
-        WK_TRY(scan_device_extensions_alloc(physical_device, &extension_props, &total_extensions));
+        WK_TRY(scan_device_extensions(alloc, physical_device,
+            &extension_props, &total_extensions));
 
         supported = supported && check_device_extensions(&device, extension_props,
             total_extensions);
 
-        free(extension_props);
-        extension_props = NULL;
-
         if(!supported) continue;
 
-        WK_TRY(get_device_queue_data(&device, first_vk_surface));
+        WK_TRY(get_device_queue_data(alloc, &device, first_vk_surface));
         if (device.graphics_queue_family_idx == UINT32_MAX) {
             supported = false;
             continue;
@@ -392,26 +386,23 @@ create_logical_device(WallkanDevice *wk_device)
 }
 
 WkResult
-wk_device_init(WallkanDevice *wk_device, WallkanInstance *wk_instance,
+wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance *wk_instance,
     VkSurfaceKHR first_vk_surface)
 {
     WkResult wkres;
     uint32_t total_devices = 0;
     VkPhysicalDevice *devices = NULL;
 
-    wkres = scan_physical_devices_alloc(wk_instance, &devices, &total_devices);
+    wkres = scan_physical_devices(alloc, wk_instance, &devices, &total_devices);
     if(wkres != WK_OK) goto err;
 
-    wkres = choose_device(devices, total_devices, wk_device, first_vk_surface);
+    wkres = choose_device(alloc, devices, total_devices, wk_device, first_vk_surface);
     if(wkres != WK_OK) goto err;
 
     wkres = create_logical_device(wk_device);
     if(wkres != WK_OK) goto err;
-
-    free(devices);
     return WK_OK;
 err:
-    free(devices);
     return wkres;
 }
 

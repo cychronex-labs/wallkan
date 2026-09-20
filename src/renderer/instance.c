@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan.h>
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "window/window.h"
@@ -33,7 +34,7 @@ cb_vk_debug(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 }
 
 static WkResult
-scan_extensions(struct ExtensionList *ext_list)
+scan_extensions(ArenaAllocator *alloc, struct ExtensionList *ext_list)
 {
     LOG("scan_extensions: Scanning for extensions...");
     WkResult wkres;
@@ -51,7 +52,7 @@ scan_extensions(struct ExtensionList *ext_list)
         goto err;
     }
 
-    extensions = malloc(total_extensions * sizeof(VkExtensionProperties));
+    extensions = arena_alloc(alloc, total_extensions * sizeof(VkExtensionProperties));
     if(!extensions) {
         WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
         goto err;
@@ -97,16 +98,13 @@ scan_extensions(struct ExtensionList *ext_list)
         WARN("scan_extensions: Debug utils not found in debug build. Validation layers will be disabled!");
     }
     #endif
-
-    free(extensions);
     return WK_OK;
 err:
-    free(extensions);
     return wkres;
 }
 
 static WkResult
-scan_validation_layers(bool *validation_layer_available)
+scan_validation_layers(ArenaAllocator *alloc, bool *validation_layer_available)
 {
     WkResult wkres;
 
@@ -124,7 +122,7 @@ scan_validation_layers(bool *validation_layer_available)
         goto err;
     }
 
-    layers = malloc(sizeof(VkLayerProperties) * total_layers);
+    layers = arena_alloc(alloc, sizeof(VkLayerProperties) * total_layers);
     if(!layers) {
         wkres = WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure");
         goto err;
@@ -145,11 +143,8 @@ scan_validation_layers(bool *validation_layer_available)
     }
     if (!*validation_layer_available)
         WARN("The Validation layers are missing but project is running in debug mode!");
-
-    free(layers);
     return WK_OK;
 err:
-    free(layers);
     return wkres;
 }
 
@@ -229,7 +224,7 @@ enable_extensions(VkInstanceCreateInfo *instance_create_info, struct ExtensionLi
 }
 
 WkResult
-wk_instance_init(WallkanInstance *wk_instance)
+wk_instance_init(ArenaAllocator *alloc, WallkanInstance *wk_instance)
 {
     LOG("wk_instance_init: Initializing vulkan instance...");
     VkApplicationInfo app_info = {
@@ -243,7 +238,7 @@ wk_instance_init(WallkanInstance *wk_instance)
     };
     struct ExtensionList ext_list = {0};
     bool validation_layer_available = false;
-    WK_TRY(scan_extensions(&ext_list));
+    WK_TRY(scan_extensions(alloc, &ext_list));
 
     const char *total_extensions[3] = {0};
     const char *layers[] = {
@@ -254,7 +249,7 @@ wk_instance_init(WallkanInstance *wk_instance)
     enable_extensions(&instance_create_info, &ext_list, total_extensions, &ext_count);
 
     if(ext_list.debug_utils)
-        WK_TRY(scan_validation_layers(&validation_layer_available));
+        WK_TRY(scan_validation_layers(alloc, &validation_layer_available));
 
     if(validation_layer_available){
         instance_create_info.enabledLayerCount = 1;

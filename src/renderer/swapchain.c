@@ -1,4 +1,5 @@
 #include "renderer/swapchain.h"
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/device.h"
@@ -74,7 +75,7 @@ surface_format_exists(VkSurfaceFormatKHR *surface_formats, uint32_t surface_form
 }
 
 static WkResult
-choose_surface_format(WallkanDevice *wk_device, VkSurfaceKHR vk_surface,
+choose_surface_format(ArenaAllocator *alloc, WallkanDevice *wk_device, VkSurfaceKHR vk_surface,
     VkFormat *out_surface_format, VkColorSpaceKHR *out_colorspace)
 {
     WkResult wkres = WK_OK;
@@ -84,7 +85,10 @@ choose_surface_format(WallkanDevice *wk_device, VkSurfaceKHR vk_surface,
             &surface_format_count, NULL),
         WK_ERR_VK_CANNOT_GET_SURFACE_FORMATS, "Couldn't get physical device surface format count!"
     ));
-    VkSurfaceFormatKHR *surface_formats = malloc(surface_format_count * sizeof(VkSurfaceFormatKHR));
+    VkSurfaceFormatKHR *surface_formats = arena_alloc(alloc, surface_format_count * sizeof(VkSurfaceFormatKHR));
+    if(!surface_formats) {
+        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
+    }
     wkres = EXPECT_VK(
         vkGetPhysicalDeviceSurfaceFormatsKHR(wk_device->physical_device , vk_surface,
             &surface_format_count, surface_formats),
@@ -102,7 +106,6 @@ choose_surface_format(WallkanDevice *wk_device, VkSurfaceKHR vk_surface,
     *out_surface_format = surface_formats[0].format;
     *out_colorspace = surface_formats[0].colorSpace;
 cleanup:
-    free(surface_formats);
     return wkres;
 }
 
@@ -154,7 +157,7 @@ init_swapchain_image_views(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_dev
 }
 
 WkResult
-wk_swapchain_init(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device,
+wk_swapchain_init(ArenaAllocator *alloc, WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device,
     WallkanOutput *wk_output, VkSurfaceKHR vk_surface)
 {
     LOG("wk_swapchain_init: Initializing swapchain...");
@@ -163,7 +166,7 @@ wk_swapchain_init(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device,
     uint32_t min_img_count = 0;
     calculate_image_count(&surface_capabilities, &min_img_count);
     calculate_image_extent(wk_output, &surface_capabilities, &wk_swapchain->image_extent);
-    WK_TRY(choose_surface_format(wk_device, vk_surface, &wk_swapchain->format,
+    WK_TRY(choose_surface_format(alloc, wk_device, vk_surface, &wk_swapchain->format,
         &wk_swapchain->colorspace));
     VkSwapchainCreateInfoKHR swapchain_create_info = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,

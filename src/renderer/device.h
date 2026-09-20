@@ -1,5 +1,6 @@
 #ifndef WALLKAN_RENDERER_DEVICE_H
 #define WALLKAN_RENDERER_DEVICE_H
+#include "arena_alloc.h"
 #include "err.h"
 #include "renderer/instance.h"
 
@@ -34,7 +35,7 @@ typedef struct WallkanDevice{
 } WallkanDevice;
 
 WkResult
-wk_device_init(WallkanDevice *wk_device, WallkanInstance *wk_instance,
+wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance *wk_instance,
     VkSurfaceKHR first_vk_surface);
 
 void

@@ -12,6 +12,7 @@
 #include "renderer/renderer.h"
 #include "window/outputs.h"
 #include "window/window.h"
+#include "arena_alloc.h"
 
 enum {
     POLL_WAYLAND = 0,
@@ -142,6 +143,8 @@ main(void)
     Wallkan wk = {
         .running = true
     };
+    ArenaAllocator arena_alloc = {0};
+    WK_TRY(arena_alloc_init(&arena_alloc));
     WkResult wkres;
 
     // Initialize all components
@@ -157,9 +160,10 @@ main(void)
     wkres = wk_window_init(&wk.window, &wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
-    wkres = wk_renderer_init(&wk.renderer, &wk.window);
+    wkres = wk_renderer_init(&arena_alloc, &wk.renderer, &wk.window);
     if(wkres != WK_OK) goto cleanup;
 
+    arena_alloc_free(&arena_alloc);
     // Polling
     struct pollfd poll_fds[POLL_COUNT] = {0};
     setup_polling(&wk, poll_fds);
@@ -193,6 +197,7 @@ main(void)
         if (wkres != WK_OK) goto cleanup;
     }
 cleanup:
+    arena_alloc_free(&arena_alloc);
     wk_renderer_cleanup(&wk.renderer, &wk.window);
     wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);

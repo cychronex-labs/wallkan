@@ -8,9 +8,9 @@
 #include "renderer/renderer.h"
 
 WkResult
-wk_renderer_init(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
+wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
 {
-    WK_TRY(wk_instance_init(&wk_renderer->wk_instance));
+    WK_TRY(wk_instance_init(alloc, &wk_renderer->wk_instance));
     if(wk_window->output_is_active_mask==0){
         return WK_ERR(WK_ERR_NO_ACTIVE_MONITORS_FOUND,
             "No active monitors found");
@@ -22,14 +22,17 @@ wk_renderer_init(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
         WK_TRY(wk_instance_init_surface(&wk_renderer->wk_instance, wk_window,
             &wk_window->wk_outputs[output_idx], &wk_renderer->vk_surfaces[output_idx]));
     }
-    WK_TRY(wk_device_init(&wk_renderer->wk_device, &wk_renderer->wk_instance,
+    WK_TRY(wk_device_init(alloc, &wk_renderer->wk_device, &wk_renderer->wk_instance,
         wk_renderer->vk_surfaces[0]));
     // Initialize swapchain for each active monitor
     active_mask = wk_window->output_is_active_mask;
     while (active_mask != 0) {
         uint32_t output_idx = bit_pop_lsb(&active_mask);
-        WK_TRY(wk_swapchain_init(&wk_renderer->wk_swapchain[output_idx], &wk_renderer->wk_device,
-            &wk_window->wk_outputs[output_idx], wk_renderer->vk_surfaces[output_idx]));
+        WK_TRY(
+            wk_swapchain_init(alloc, &wk_renderer->wk_swapchain[output_idx],
+                &wk_renderer->wk_device,&wk_window->wk_outputs[output_idx],
+                wk_renderer->vk_surfaces[output_idx])
+        );
     }
     return WK_OK;
 }

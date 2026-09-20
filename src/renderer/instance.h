@@ -1,6 +1,7 @@
 #ifndef WALLKAN_RENDERER_INSTANCE_H
 #define WALLKAN_RENDERER_INSTANCE_H
 #include <vulkan/vulkan.h>
+#include "arena_alloc.h"
 #include "window/window.h"
 #include "err.h"
 
@@ -10,7 +11,7 @@ typedef struct WallkanInstance{
 } WallkanInstance;
 
 
-WkResult wk_instance_init(WallkanInstance *wk_instance);
+WkResult wk_instance_init(ArenaAllocator *alloc, WallkanInstance *wk_instance);
 
 WkResult
 wk_instance_init_surface(WallkanInstance *wk_instance, const WallkanWindow *wk_window,

@@ -68,6 +68,7 @@ dependencies = [
 ]
 
 sources = files(
+  'src/arena_alloc.c',
   'src/wallkan.c',
   'src/err.c',
   'src/events.c',

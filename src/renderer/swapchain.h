@@ -14,7 +14,7 @@ typedef struct WallkanSwapchain {
 } WallkanSwapchain;
 
 WkResult
-wk_swapchain_init(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device,
+wk_swapchain_init(ArenaAllocator *alloc, WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device,
     WallkanOutput *wk_output, VkSurfaceKHR vk_surface);
 
 void

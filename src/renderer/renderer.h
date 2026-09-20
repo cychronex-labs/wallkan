@@ -14,7 +14,7 @@ typedef struct WallkanRenderer {
 } WallkanRenderer;
 
 WkResult
-wk_renderer_init(WallkanRenderer *wk_renderer, WallkanWindow *wk_window);
+wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWindow *wk_window);
 
 WkResult
 wk_renderer_render(WallkanRenderer *wk_renderer, WallkanWindow *wk_window);
