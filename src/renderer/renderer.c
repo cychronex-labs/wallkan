@@ -35,9 +35,7 @@ wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWin
     while (active_mask != 0) {
         uint32_t output_idx = bit_pop_lsb(&active_mask);
         WK_TRY(
-            wk_swapchain_init(alloc, &wk_renderer->wk_swapchain[output_idx],
-                &wk_renderer->wk_device,&wk_window->wk_outputs[output_idx],
-                wk_renderer->vk_surfaces[output_idx])
+            wk_renderer_output_init(alloc, wk_renderer, &wk_window->wk_outputs[output_idx])
         );
     }
     return WK_OK;

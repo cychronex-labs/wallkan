@@ -187,6 +187,7 @@ WkResult
 wk_instance_init_surface(WallkanInstance *wk_instance, const WallkanWindow *wk_window,
     WallkanOutput *wk_output, VkSurfaceKHR *vk_surface)
 {
+    if(*vk_surface != VK_NULL_HANDLE) return WK_OK;
     LOG("wk_instance_init_surface: Creating vulkan surface for wayland..");
     VkWaylandSurfaceCreateInfoKHR wl_surface_create_info = {
         .sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
