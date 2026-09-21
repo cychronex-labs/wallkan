@@ -9,6 +9,7 @@
 #include "err.h"
 #include "events.h"
 #include "ipc.h"
+#include "ipc_cmd/ipc_cmd.h"
 #include "renderer/renderer.h"
 #include "window/outputs.h"
 #include "window/window.h"
@@ -20,15 +21,6 @@ enum {
     POLL_IPC_CLIENT,
     POLL_COUNT,
 };
-
-static WkResult
-exit_wallkan(const WkEvent *event, void *data)
-{
-    (void)event;
-    Wallkan *wk = (Wallkan*)data;
-    wk->running = false;
-    return WK_OK;
-}
 
 static void
 setup_polling(Wallkan *wk, struct pollfd *poll_fds)
@@ -55,7 +47,7 @@ check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
         LOG("Wayland compositor disconnected or crashed.");
         wl_display_cancel_read(wk->window.display);
         // Does not need any data. parameters are to satisfy the event handler
-        exit_wallkan(NULL, wk);
+        wallkan_stop(NULL, wk);
         return WK_ERR(WK_ERR_WL_COMPOSITOR_DISCONNECTED,
             "Wayland disconnected while polling for events!");
     }
@@ -74,10 +66,10 @@ check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
 }
 
 static void
-check_for_ipc_events(Wallkan *wk, struct pollfd *poll_fds)
+check_for_ipc_events(ArenaAllocator *alloc, Wallkan *wk, struct pollfd *poll_fds)
 {
     if (poll_fds[POLL_IPC_SERVER].revents & POLLIN) {
-        WkResult wkres = wk_ipc_handle_connection(&wk->ipc);
+        WkResult wkres = wk_ipc_handle_connection(alloc, wk);
         poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
             .fd = wk->ipc.client_fd,
             .events = 0
@@ -93,47 +85,35 @@ check_for_ipc_events(Wallkan *wk, struct pollfd *poll_fds)
 }
 
 static WkResult
-handle_ipc_cmd(const WkEvent *event, void *data)
-{
-    Wallkan *wk = (Wallkan*)data;
-    switch (event->ipc_cmd_event.cmd_code){
-        case WK_IPC_COMMAND_CODE_QUIT:
-            if(wk_ipc_reply_pending(event->ipc_cmd_event.wk_ipc)) {
-                wk_ipc_reply(event->ipc_cmd_event.wk_ipc, &(WkIPCReply){
-                    .reply_code = WK_IPC_REPLY_OK,
-                    .message = "Successfully closed daemon"
-                });
-            }
-            exit_wallkan(NULL, wk);
-            break;
-        default:
-            WARN("handle_ipc_cmd: Received unknown command code %d in WkIPCCommandEvent",
-                event->ipc_cmd_event.cmd_code);
-            if(wk_ipc_reply_pending(event->ipc_cmd_event.wk_ipc)) {
-                wk_ipc_reply(event->ipc_cmd_event.wk_ipc, &(WkIPCReply){
-                    .reply_code = WK_IPC_REPLY_INTERNAL_ERROR,
-                    .message = "Internal error occurred! IPC command handler got unknown command code"
-                });
-            }
-    }
-    return WK_OK;
-}
-
-static WkResult
 bind_all_events(Wallkan *wk)
 {
     WK_TRY(wk_ev_handler_bind(&wk->event_handler, WK_EVENT_CLOSE, NULL,
         &(WkEventCallback){
-            .callback = exit_wallkan,
+            .callback = wallkan_stop,
             .data = wk
         }
     ));
-    WK_TRY(wk_ev_handler_bind(&wk->event_handler, WK_EVENT_IPC_COMMAND, NULL,
-        &(WkEventCallback){
-            .callback = handle_ipc_cmd,
-            .data = wk
-        }
-    ));
+    return WK_OK;
+}
+
+WkResult
+wallkan_stop(const WkEvent *event, void *data)
+{
+    (void)event;
+    Wallkan *wk = (Wallkan*)data;
+    wk->running = false;
+    return WK_OK;
+}
+
+WkResult
+wallkan_enable_output(ArenaAllocator *alloc, Wallkan *wk, WallkanOutput *wk_output)
+{
+    WK_TRY(
+        wk_output_enable(wk_output)
+    );
+    WK_TRY(
+        wk_renderer_output_init(alloc, &wk->renderer, wk_output)
+    );
     return WK_OK;
 }
 
@@ -163,13 +143,14 @@ main(void)
     wkres = wk_renderer_init(&arena_alloc, &wk.renderer, &wk.window);
     if(wkres != WK_OK) goto cleanup;
 
-    arena_alloc_free(&arena_alloc);
     // Polling
     struct pollfd poll_fds[POLL_COUNT] = {0};
     setup_polling(&wk, poll_fds);
 
     wk_window_request_all_frames(&wk.window);
     while(wk.running){
+        arena_alloc_reset(&arena_alloc);
+
         poll_fds[POLL_IPC_CLIENT].fd = wk.ipc.client_fd;
         wkres = wk_window_wl_prepare_read(&wk.window);
         if(wkres != WK_OK) goto cleanup;
@@ -185,12 +166,13 @@ main(void)
         wkres = check_for_wayland_events(&wk, poll_fds);
         if(wkres != WK_OK) goto cleanup;
 
-        check_for_ipc_events(&wk, poll_fds);
+        check_for_ipc_events(&arena_alloc, &wk, poll_fds);
 
         wkres = wk_ev_handler_dispatch(&wk.event_handler);
         if(wkres != WK_OK) goto cleanup;
 
-        if (wk.window.output_frame_ready_mask == 0) continue;
+        if (wk.window.output_frame_ready_mask == 0 || wk.window.output_is_active_mask == 0)
+            continue;
 
         // Request the next frame
         wkres = wk_renderer_render(&wk.renderer, &wk.window);

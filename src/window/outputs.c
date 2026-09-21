@@ -92,11 +92,15 @@ void cb_output_done(void *data,
         LOG("(CB)output_done: Updated properties of output %s!", wk_output->name);
         return;
     }
+    wk_output->got_details = true;
     if(wk_output->wk_window->output_is_active_mask == 0){
         LOG("(CB)output_done: Marked output %s as active!", wk_output->name);
-        wk_output_enable(wk_output, wk_output->wk_window, NULL);
+        WkResult wkres = wk_output_enable(wk_output);
+        if(wkres != WK_OK){
+            WK_ERR(WK_ERR_OUTPUT_ENABLE, "Failed to enable output: %s", wk_output->name);
+            return;
+        }
     }
-    wk_output->got_details = true;
     LOG("(CB)output_done: Filled details of output %s!", wk_output->name);
 }
 
@@ -265,31 +269,24 @@ setup_zwlr_layer_surface(WallkanWindow *wk_window, WallkanOutput *wk_output)
 }
 
 WkResult
-wk_output_enable(WallkanOutput *wk_output, WallkanWindow *wk_window, WallkanIpc *wk_ipc)
+wk_output_enable(WallkanOutput *wk_output)
 {
     WkResult wkres = WK_OK;
-    ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
 
-    if(wk_output_is_active(wk_output)) return WK_OK;
-    wk_window->output_is_active_mask |= (1 << wk_output_idx);
-    wkres = setup_wayland_surface(wk_window, wk_output);
-    if(wkres != WK_OK) goto err;
-    wkres = setup_zwlr_layer_surface(wk_window, wk_output);
-    if(wkres != WK_OK) goto err;
-    if(wk_ipc){
-        wk_ipc_reply(wk_ipc, &(WkIPCReply){
-            .reply_code = WK_IPC_REPLY_OK,
-            .message = "Successfully enabled output device!"
-        });
+    ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    if(!wk_output->got_details){
+        wkres = WK_ERR(WK_ERR_UNDISCOVERED_MONITOR, "Undiscovered monitor: %zu", wk_output_idx);
+        goto err;
     }
+    if(wk_output_is_active(wk_output)) return WK_OK;
+    wkres = setup_wayland_surface(wk_output->wk_window, wk_output);
+    if(wkres != WK_OK) goto err;
+    wkres = setup_zwlr_layer_surface(wk_output->wk_window, wk_output);
+    if(wkres != WK_OK) goto err;
+    wk_output->wk_window->output_is_active_mask |= (1 << wk_output_idx);
+
     return WK_OK;
 err:
-    if(wk_ipc){
-        wk_ipc_reply(wk_ipc, &(WkIPCReply){
-            .reply_code = WK_IPC_REPLY_INTERNAL_ERROR,
-            .message = "Failed to enable output device! Daemon has crashed!"
-        });
-    }
     return wkres;
 }
 
@@ -303,13 +300,33 @@ wk_output_request_frame(WallkanOutput *wk_output)
     return;
 }
 
-void
+WkResult
 wk_output_disable(WallkanOutput *wk_output)
 {
-
+    WkResult wkres = WK_OK;
     ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    if(!wk_output->got_details){
+        wkres = WK_ERR(WK_ERR_UNDISCOVERED_MONITOR, "Undiscovered monitor: %zu",
+            wk_output_idx);
+        goto err;
+    }
     wk_output->wk_window->output_is_active_mask &= ~(1 << wk_output_idx);
     wk_output->wk_window->output_frame_ready_mask &= ~(1 << wk_output_idx);
+    if (wk_output->frame_cb) {
+        wl_callback_destroy(wk_output->frame_cb);
+        wk_output->frame_cb = NULL;
+    }
+    if (wk_output->layer_surface) {
+        zwlr_layer_surface_v1_destroy(wk_output->layer_surface);
+        wk_output->layer_surface = NULL;
+    }
+    if (wk_output->surface) {
+        wl_surface_destroy(wk_output->surface);
+        wk_output->surface = NULL;
+    }
+    return WK_OK;
+err:
+    return wkres;
 }
 
 void

@@ -162,7 +162,7 @@ get_device_queue_data(ArenaAllocator *alloc, WallkanDevice *wk_device,
     video_props = arena_alloc(alloc, sizeof(VkQueueFamilyVideoPropertiesKHR) * queue_family_count);
     family_props2 = arena_alloc(alloc, sizeof(VkQueueFamilyProperties2) * queue_family_count);
     if(!video_props || !family_props2){
-        WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
+        wkres = WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
         goto err;
     }
     for (uint32_t i=0; i<queue_family_count; i++) {

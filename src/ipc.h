@@ -2,8 +2,11 @@
 #define WALLKAN_IPC_H
 #include <stdint.h>
 #include <yyjson.h>
+#include "arena_alloc.h"
 #include "events.h"
 #define MAX_IPC_BUFFER_SIZE 512
+
+typedef struct Wallkan Wallkan;
 
 typedef struct CommandProcessor {
     uint32_t json_pool_size;
@@ -23,7 +26,9 @@ typedef struct WallkanIpc {
 } WallkanIpc;
 
 typedef enum IPCCommandCodes {
-    WK_IPC_COMMAND_CODE_QUIT
+    WK_IPC_COMMAND_CODE_QUIT,
+    WK_IPC_COMMAND_CODE_OUTPUT_LIST,
+    WK_IPC_COMMAND_CODE_OUTPUT_ENABLE,
 } IPCCommandCodes;
 
 typedef enum ReplyCodes {
@@ -35,6 +40,7 @@ typedef enum ReplyCodes {
 
 typedef struct WkIPCReply{
     char message[128];
+    yyjson_mut_doc *response_doc;
     ReplyCodes reply_code;
 } WkIPCReply;
 
@@ -42,7 +48,7 @@ WkResult
 wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler);
 
 WkResult
-wk_ipc_handle_connection(WallkanIpc *wk_ipc);
+wk_ipc_handle_connection(ArenaAllocator *alloc, Wallkan *wk);
 
 bool
 wk_ipc_reply_pending(WallkanIpc *wk_ipc);

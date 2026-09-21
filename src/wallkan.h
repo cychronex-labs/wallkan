@@ -14,4 +14,7 @@ typedef struct Wallkan {
     bool                running;
 } Wallkan;
 
+WkResult
+wallkan_stop(const WkEvent *event, void *data);
+
 #endif

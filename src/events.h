@@ -11,8 +11,6 @@ typedef enum WkEventType {
     WK_EVENT_NONE = 0,
     WK_EVENT_RESIZE,
     WK_EVENT_CLOSE,
-    WK_EVENT_IPC_COMMAND,
-    WK_EVENT_ENABLE_OUTPUT,
     WK_EVENT_TYPE_COUNT
 } WkEventType;
 
@@ -30,8 +28,8 @@ typedef struct WkCloseEvent {
 
 typedef struct WkEnableOutputEvent {
     WallkanIpc *wk_ipc;
-    WallkanWindow *wk_window;
     WallkanOutput *wk_output;
+    uint32_t index;
 } WkEnableOutputEvent;
 
 typedef struct WkIPCCommandEvent {

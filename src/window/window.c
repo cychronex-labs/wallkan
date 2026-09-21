@@ -241,6 +241,9 @@ WkResult
 wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handler)
 {
     wk_win->wk_ev_handler = wk_ev_handler;
+    for (uint32_t i = 0; i < MAX_OUTPUTS; i++) {
+        wk_win->wk_outputs[i].wk_window = wk_win;
+    }
     WK_TRY(connect_wayland_display(wk_win));
     WK_TRY(setup_registry(wk_win));
     WK_TRY(validate_registry(wk_win));

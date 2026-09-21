@@ -17,6 +17,13 @@ WkResult
 wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWindow *wk_window);
 
 WkResult
+wk_renderer_output_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer,
+    WallkanOutput *wk_output);
+
+void
+wk_renderer_output_cleanup(WallkanRenderer *wk_renderer, WallkanOutput *wk_output);
+
+WkResult
 wk_renderer_render(WallkanRenderer *wk_renderer, WallkanWindow *wk_window);
 
 void

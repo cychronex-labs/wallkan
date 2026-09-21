@@ -1,10 +1,13 @@
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/instance.h"
 #include "renderer/swapchain.h"
 #include "window/outputs.h"
+#include <stddef.h>
 #include <stdint.h>
+#include <vulkan/vulkan_core.h>
 #include "renderer/renderer.h"
 
 WkResult
@@ -35,6 +38,35 @@ wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWin
         );
     }
     return WK_OK;
+}
+
+WkResult
+wk_renderer_output_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer,
+    WallkanOutput *wk_output)
+{
+    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
+
+    WK_TRY(
+        wk_instance_init_surface(&wk_renderer->wk_instance, wk_output->wk_window,
+            wk_output, &wk_renderer->vk_surfaces[output_idx])
+    );
+    WK_TRY(
+        wk_swapchain_init(alloc, &wk_renderer->wk_swapchain[output_idx],
+            &wk_renderer->wk_device, wk_output, wk_renderer->vk_surfaces[output_idx])
+    );
+    return WK_OK;
+}
+
+void
+wk_renderer_output_cleanup(WallkanRenderer *wk_renderer, WallkanOutput *wk_output)
+{
+    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    VkSurfaceKHR vk_surface = wk_renderer->vk_surfaces[output_idx];
+    wk_swapchain_cleanup(&wk_renderer->wk_swapchain[output_idx], &wk_renderer->wk_device);
+    if(vk_surface){
+        vkDestroySurfaceKHR(wk_renderer->wk_instance.vk_instance, vk_surface, NULL);
+        wk_renderer->vk_surfaces[output_idx] = VK_NULL_HANDLE;
+    }
 }
 
 WkResult

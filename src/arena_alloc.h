@@ -18,6 +18,9 @@ void *
 arena_alloc(ArenaAllocator *allocator, uint32_t size);
 
 void
+arena_alloc_reset(ArenaAllocator *allocator);
+
+void
 arena_alloc_free(ArenaAllocator *allocator);
 
 #endif

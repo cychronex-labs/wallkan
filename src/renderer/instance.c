@@ -54,7 +54,7 @@ scan_extensions(ArenaAllocator *alloc, struct ExtensionList *ext_list)
 
     extensions = arena_alloc(alloc, total_extensions * sizeof(VkExtensionProperties));
     if(!extensions) {
-        WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
+        wkres = WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
         goto err;
     }
 

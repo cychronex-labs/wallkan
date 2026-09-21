@@ -14,7 +14,7 @@
 #include "events.h"
 #include "subprojects/yyjson/yyjson.h"
 #include "ipc.h"
-
+#include "ipc_cmd/ipc_cmd.h"
 
 static WkResult
 get_socket_path(char *sock_path, size_t max_len)
@@ -65,51 +65,7 @@ setup_server_sock(WallkanIpc *wk_ipc, struct sockaddr_un *addr)
         return WK_ERR(WK_ERR_IPC_SOCKET_BIND_FAILED, "Failed to bind the server socket!");
     }
     if(listen(wk_ipc->server_fd, 16) < 0){
-        return WK_ERR(WK_ERR_IPC_SOCKET_LISTEN_FAILED, "Failed to bind the server socket!");
-    }
-    return WK_OK;
-}
-
-static WkResult
-wk_ipc_parse_commands(WallkanIpc *wk_ipc, yyjson_doc *doc)
-{
-    yyjson_val *root = yyjson_doc_get_root(doc);
-    wk_ipc->reply_is_due = true;
-    if (!yyjson_is_obj(root)) {
-        wk_ipc_reply(wk_ipc, &(const WkIPCReply){
-            .reply_code = WK_IPC_REPLY_INVALID_DATA,
-            .message = "Invalid json format, 'cmd' is missing!",
-        });
-        return WK_OK;
-    }
-    const char *cmd = yyjson_get_str(yyjson_obj_get(root, "cmd"));
-    if(!cmd){
-        wk_ipc_reply(wk_ipc, &(const WkIPCReply){
-            .reply_code = WK_IPC_REPLY_INVALID_DATA,
-            .message = "Invalid json format, 'cmd' is missing!",
-        });
-        return WK_OK;
-    }
-    if(strcmp(cmd, "ping") == 0){
-        wk_ipc_reply(wk_ipc, &(const WkIPCReply){
-            .reply_code = WK_IPC_REPLY_OK,
-            .message = "Yeah. I am alive!",
-        });
-    }
-    else if(strcmp(cmd, "quit") == 0){
-        wk_ev_handler_emit(wk_ipc->wk_ev_handler, &(WkEvent){
-            .type = WK_EVENT_IPC_COMMAND,
-            .ipc_cmd_event = (WkIPCCommandEvent){
-                .cmd_code = WK_IPC_COMMAND_CODE_QUIT,
-                .wk_ipc = wk_ipc
-            }
-        });
-    }
-    else{
-        wk_ipc_reply(wk_ipc, &(const WkIPCReply){
-            .reply_code = WK_IPC_REPLY_UNKNOWN_COMMAND,
-            .message = "Unknown command",
-        });
+        return WK_ERR(WK_ERR_IPC_SOCKET_LISTEN_FAILED, "Failed to listen on the server socket!");
     }
     return WK_OK;
 }
@@ -120,8 +76,8 @@ wk_ipc_reply_pending(WallkanIpc *wk_ipc)
     return wk_ipc->reply_is_due && wk_ipc->client_in_connection && wk_ipc->client_fd != -1;
 }
 
-static WkResult
-wk_ipc_reply_blind(WallkanIpc *wk_ipc, const WkIPCReply *reply)
+static yyjson_mut_doc*
+build_default_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
 {
     yyjson_mut_doc *doc = yyjson_mut_doc_new(&wk_ipc->cmd_processor.json_reply_alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
@@ -135,6 +91,19 @@ wk_ipc_reply_blind(WallkanIpc *wk_ipc, const WkIPCReply *reply)
             yyjson_mut_obj_add_str(doc, root, "message", reply->message);
         }
     }
+    return doc;
+}
+
+// Will free the doc!
+static WkResult
+wk_ipc_reply_blind(WallkanIpc *wk_ipc, const WkIPCReply *reply)
+{
+    yyjson_mut_doc *doc;
+    if(reply->response_doc)
+        doc = reply->response_doc;
+    else
+        doc = build_default_reply(wk_ipc, reply);
+
     size_t json_len = 0;
     char *json_str =
         yyjson_mut_write_opts(doc, 0, &wk_ipc->cmd_processor.json_reply_alc, &json_len, NULL);
@@ -161,10 +130,10 @@ wk_ipc_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
 }
 
 WkResult
-wk_ipc_handle_connection(WallkanIpc *wk_ipc)
+wk_ipc_handle_connection(ArenaAllocator *alloc, Wallkan *wk)
 {
     char buf[MAX_IPC_BUFFER_SIZE];
-    int client_fd = accept4(wk_ipc->server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    int client_fd = accept4(wk->ipc.server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
     yyjson_doc *doc = NULL;
     WkResult wkres = WK_OK;
@@ -175,8 +144,8 @@ wk_ipc_handle_connection(WallkanIpc *wk_ipc)
         };
         goto err;
     }
-    wk_ipc->client_fd = client_fd;
-    wk_ipc->client_in_connection = true;
+    wk->ipc.client_fd = client_fd;
+    wk->ipc.client_in_connection = true;
     ssize_t bytes_read = read(client_fd, buf, sizeof(buf) - 1);
     if(bytes_read <= 0){
         if(errno != EAGAIN && errno != EWOULDBLOCK){
@@ -193,12 +162,12 @@ wk_ipc_handle_connection(WallkanIpc *wk_ipc)
     }else{
         buf[bytes_read] = '\0';
     }
-    doc = yyjson_read_opts(buf, bytes_read, 0, &wk_ipc->cmd_processor.json_parse_alc, NULL);
+    doc = yyjson_read_opts(buf, bytes_read, 0, &wk->ipc.cmd_processor.json_parse_alc, NULL);
     LOG("wk_ipc_handle_connection: Recieved: %s", buf);
-    if(wk_ipc_parse_commands(wk_ipc, doc) != WK_OK) goto err;
+    if(ipc_cmd_handle(alloc, doc, wk) != WK_OK) goto err;
     goto cleanup;
 err:
-    wk_ipc_clean_client_data(wk_ipc);
+    wk_ipc_clean_client_data(&wk->ipc);
 cleanup:
     yyjson_doc_free(doc);
     return wkres;
