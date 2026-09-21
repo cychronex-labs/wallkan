@@ -93,13 +93,11 @@ void cb_output_done(void *data,
         return;
     }
     wk_output->got_details = true;
-    if(wk_output->wk_window->output_is_active_mask == 0){
-        LOG("(CB)output_done: Marked output %s as active!", wk_output->name);
-        WkResult wkres = wk_output_enable(wk_output);
-        if(wkres != WK_OK){
-            WK_ERR(WK_ERR_OUTPUT_ENABLE, "Failed to enable output: %s", wk_output->name);
-            return;
-        }
+    LOG("(CB)output_done: Marked output %s as active!", wk_output->name);
+    WkResult wkres = wk_output_enable(wk_output);
+    if(wkres != WK_OK){
+        WK_ERR(WK_ERR_OUTPUT_ENABLE, "Failed to enable output: %s", wk_output->name);
+        return;
     }
     LOG("(CB)output_done: Filled details of output %s!", wk_output->name);
 }

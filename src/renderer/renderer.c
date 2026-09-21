@@ -25,8 +25,11 @@ wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWin
         WK_TRY(wk_instance_init_surface(&wk_renderer->wk_instance, wk_window,
             &wk_window->wk_outputs[output_idx], &wk_renderer->vk_surfaces[output_idx]));
     }
+
+    uint32_t first_active_idx = (uint32_t)__builtin_ctz(wk_window->output_is_active_mask);
     WK_TRY(wk_device_init(alloc, &wk_renderer->wk_device, &wk_renderer->wk_instance,
-        wk_renderer->vk_surfaces[0]));
+        wk_renderer->vk_surfaces[first_active_idx]));
+
     // Initialize swapchain for each active monitor
     active_mask = wk_window->output_is_active_mask;
     while (active_mask != 0) {
