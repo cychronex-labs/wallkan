@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include "common.h"
 #include "err.h"
+#include "events.h"
 #include "window/outputs.h"
 #include "window/window.h"
 
@@ -172,7 +173,12 @@ cb_registry_global_remove(void *data, struct wl_registry *wl_registry, uint32_t 
     for (uint32_t i=0; i<MAX_OUTPUTS; i++) {
         WallkanOutput *wk_output = &wk_window->wk_outputs[i];
         if (wk_output->registry_id == name) {
-            wk_output_cleanup(wk_output);
+            wk_ev_handler_emit(wk_output->wk_window->wk_ev_handler, &(WkEvent){
+                .type = WK_EVENT_OUTPUT_UNPLUGGED,
+                .output_event = (WkOutputEvent){
+                    .wk_output = wk_output,
+                }
+            });
             break;
         }
     }

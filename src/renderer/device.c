@@ -5,7 +5,6 @@
 #include "renderer/device.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
@@ -389,6 +388,7 @@ WkResult
 wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance *wk_instance,
     VkSurfaceKHR first_vk_surface)
 {
+    if(wk_device->device != VK_NULL_HANDLE) return WK_OK;
     WkResult wkres;
     uint32_t total_devices = 0;
     VkPhysicalDevice *devices = NULL;

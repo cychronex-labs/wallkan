@@ -11,6 +11,10 @@ typedef enum WkEventType {
     WK_EVENT_NONE = 0,
     WK_EVENT_RESIZE,
     WK_EVENT_CLOSE,
+    WK_EVENT_OUTPUT_READY,
+    WK_EVENT_OUTPUT_DISABLE,
+    WK_EVENT_OUTPUT_RECONFIGURED,
+    WK_EVENT_OUTPUT_UNPLUGGED,
     WK_EVENT_TYPE_COUNT
 } WkEventType;
 
@@ -22,26 +26,17 @@ typedef struct WkResizeEvent {
 
 typedef struct WallkanIpc WallkanIpc;
 typedef struct WkCloseEvent {
-    WallkanIpc *wk_ipc;
     WallkanOutput *wk_output;
 } WkCloseEvent;
 
-typedef struct WkEnableOutputEvent {
-    WallkanIpc *wk_ipc;
+typedef struct WkOutputEvent {
     WallkanOutput *wk_output;
-    uint32_t index;
-} WkEnableOutputEvent;
-
-typedef struct WkIPCCommandEvent {
-    WallkanIpc *wk_ipc;
-    int cmd_code;
-} WkIPCCommandEvent;
+} WkOutputEvent;
 
 typedef struct WkEvent {
     WkEventType type;
     union {
-        WkIPCCommandEvent ipc_cmd_event;
-        WkEnableOutputEvent enable_output_event;
+        WkOutputEvent output_event;
         WkResizeEvent resize_event;
         WkCloseEvent close_event;
     };

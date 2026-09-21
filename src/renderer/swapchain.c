@@ -120,6 +120,9 @@ init_swapchain_images(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device)
     ));
     LOG("init_swapchain_images: - Swapchain image count: %d...", wk_swapchain->image_count);
     wk_swapchain->images = malloc(wk_swapchain->image_count * sizeof(VkImage));
+    if (!wk_swapchain->images) {
+        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to allocate swapchain images!");
+    }
     WK_TRY(EXPECT_VK(
         vkGetSwapchainImagesKHR(wk_device->device, wk_swapchain->vk_swapchain,
             &wk_swapchain->image_count, wk_swapchain->images),
@@ -133,6 +136,9 @@ init_swapchain_image_views(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_dev
 {
     LOG("init_swapchain_image_views: Creating swapchain image views...");
     wk_swapchain->image_views = calloc(wk_swapchain->image_count, sizeof(VkImageView));
+    if (!wk_swapchain->image_views) {
+        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to allocate swapchain image views!");
+    }
     VkImageViewCreateInfo img_view_create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,

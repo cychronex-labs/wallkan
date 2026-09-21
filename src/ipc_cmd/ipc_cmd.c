@@ -10,12 +10,19 @@
 WkResult
 ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk)
 {
+    if (!doc) {
+        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+            .reply_code = WK_IPC_REPLY_INVALID_DATA,
+            .message = "Invalid json format!",
+        });
+        return WK_OK;
+    }
     yyjson_val *root = yyjson_doc_get_root(doc);
     wk->ipc.reply_is_due = true;
     if (!yyjson_is_obj(root)) {
         wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_INVALID_DATA,
-            .message = "Invalid json format, 'cmd' is missing!",
+            .message = "Invalid json format!",
         });
         return WK_OK;
     }

@@ -13,31 +13,13 @@
 WkResult
 wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
 {
-    WK_TRY(wk_instance_init(alloc, &wk_renderer->wk_instance));
+    (void)alloc;
+    (void)wk_renderer;
     if(wk_window->output_is_active_mask==0){
         return WK_ERR(WK_ERR_NO_ACTIVE_MONITORS_FOUND,
             "No active monitors found");
     }
-    uint8_t active_mask = wk_window->output_is_active_mask;
-    // Initialize vk surface for each active monitor
-    while (active_mask != 0) {
-        uint32_t output_idx = bit_pop_lsb(&active_mask);
-        WK_TRY(wk_instance_init_surface(&wk_renderer->wk_instance, wk_window,
-            &wk_window->wk_outputs[output_idx], &wk_renderer->vk_surfaces[output_idx]));
-    }
 
-    uint32_t first_active_idx = (uint32_t)__builtin_ctz(wk_window->output_is_active_mask);
-    WK_TRY(wk_device_init(alloc, &wk_renderer->wk_device, &wk_renderer->wk_instance,
-        wk_renderer->vk_surfaces[first_active_idx]));
-
-    // Initialize swapchain for each active monitor
-    active_mask = wk_window->output_is_active_mask;
-    while (active_mask != 0) {
-        uint32_t output_idx = bit_pop_lsb(&active_mask);
-        WK_TRY(
-            wk_renderer_output_init(alloc, wk_renderer, &wk_window->wk_outputs[output_idx])
-        );
-    }
     return WK_OK;
 }
 
@@ -46,11 +28,14 @@ wk_renderer_output_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer,
     WallkanOutput *wk_output)
 {
     ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
-
     WK_TRY(
         wk_instance_init_surface(&wk_renderer->wk_instance, wk_output->wk_window,
             wk_output, &wk_renderer->vk_surfaces[output_idx])
     );
+    // wk_device_init only continues only if its uninitialized.
+    WK_TRY(wk_device_init(alloc, &wk_renderer->wk_device, &wk_renderer->wk_instance,
+        wk_renderer->vk_surfaces[output_idx]));
+
     WK_TRY(
         wk_swapchain_init(alloc, &wk_renderer->wk_swapchain[output_idx],
             &wk_renderer->wk_device, wk_output, wk_renderer->vk_surfaces[output_idx])
@@ -73,6 +58,7 @@ wk_renderer_output_cleanup(WallkanRenderer *wk_renderer, WallkanOutput *wk_outpu
 WkResult
 wk_renderer_render(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
 {
+    (void)wk_renderer;
     uint8_t active_mask = wk_window->output_is_active_mask;
     // Iterate maximum until all bits are zero
     while (active_mask != 0) {
@@ -96,13 +82,7 @@ wk_renderer_cleanup(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
     // Iterate maximum until all bits are zero
     while (active_mask != 0) {
         uint32_t output_idx = bit_pop_lsb(&active_mask);
-        wk_swapchain_cleanup(&wk_renderer->wk_swapchain[output_idx], &wk_renderer->wk_device);
-        if(wk_renderer->vk_surfaces[output_idx]){
-            LOG("wk_renderer_cleanup: Destroying vulkan KHR surface...");
-            vkDestroySurfaceKHR(wk_renderer->wk_instance.vk_instance,
-                wk_renderer->vk_surfaces[output_idx], NULL);
-            wk_renderer->vk_surfaces[output_idx] = VK_NULL_HANDLE;
-        }
+        wk_renderer_output_cleanup(wk_renderer, &wk_window->wk_outputs[output_idx]);
     }
     wk_device_cleanup(&wk_renderer->wk_device);
     wk_instance_cleanup(&wk_renderer->wk_instance);

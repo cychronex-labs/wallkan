@@ -2,9 +2,6 @@
 #include "common.h"
 #include "err.h"
 #include "events.h"
-#include "ipc.h"
-#include "renderer/instance.h"
-#include "renderer/renderer.h"
 #include "window/window.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -90,15 +87,23 @@ void cb_output_done(void *data,
 
     if(wk_output->got_details){
         LOG("(CB)output_done: Updated properties of output %s!", wk_output->name);
+        wk_ev_handler_emit(wk_output->wk_window->wk_ev_handler, &(WkEvent){
+            .type = WK_EVENT_OUTPUT_RECONFIGURED,
+            .output_event = (WkOutputEvent){
+                .wk_output = wk_output,
+            }
+        });
         return;
     }
     wk_output->got_details = true;
-    LOG("(CB)output_done: Marked output %s as active!", wk_output->name);
-    WkResult wkres = wk_output_enable(wk_output);
-    if(wkres != WK_OK){
-        WK_ERR(WK_ERR_OUTPUT_ENABLE, "Failed to enable output: %s", wk_output->name);
-        return;
-    }
+
+    WkResult wkres = wk_ev_handler_emit(wk_output->wk_window->wk_ev_handler, &(WkEvent){
+        .type = WK_EVENT_OUTPUT_READY,
+        .output_event = (WkOutputEvent){
+            .wk_output = wk_output,
+        }
+    });
+    if(wkres != WK_OK) return;
     LOG("(CB)output_done: Filled details of output %s!", wk_output->name);
 }
 

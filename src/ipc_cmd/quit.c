@@ -1,5 +1,4 @@
 #include "ipc_cmd/quit.h"
-#include "events.h"
 #include "wallkan.h"
 
 WkResult
@@ -9,6 +8,6 @@ ipc_cmd_quit(Wallkan *wk)
         .reply_code = WK_IPC_REPLY_OK,
         .message = "Successfully closed daemon"
     });
-    wallkan_stop(NULL, wk);
+    wallkan_stop(wk);
     return WK_OK;
 }

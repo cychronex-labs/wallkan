@@ -1,9 +1,10 @@
 #include "ipc_cmd/output.h"
 #include "arena_alloc.h"
 #include "err.h"
+#include "events.h"
 #include "ipc.h"
-#include "renderer/renderer.h"
 #include "subprojects/yyjson/yyjson.h"
+#include "wallkan.h"
 #include "window/outputs.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -52,6 +53,9 @@ ipc_cmd_output_list(Wallkan *wk)
 WkResult
 ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc)
 {
+    // Why still receive alloc when Wallkan have it?
+    // To mark that this function uses ArenaAllocator.
+    (void)alloc;
     // Setup yyjson
     WkResult wkres = WK_OK;
     yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
@@ -75,10 +79,9 @@ ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc)
 
     yyjson_mut_obj_add_str(resp_doc, resp_root, "status", "ok");
 
-    wkres = wk_output_enable(&wk->window.wk_outputs[output_idx]);
+    wkres = wallkan_enable_output(wk, &wk->window.wk_outputs[output_idx]);
     if(wkres != WK_OK) goto err;
-    wkres = wk_renderer_output_init(alloc, &wk->renderer, &wk->window.wk_outputs[output_idx]);
-    if(wkres != WK_OK) goto err;
+
     reply = (WkIPCReply){
         .reply_code = WK_IPC_REPLY_OK,
         .message = "Successfully enabled output!"
@@ -114,6 +117,7 @@ err:
 WkResult
 ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc)
 {
+    WkResult wkres = WK_OK;
     yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
     yyjson_mut_val *resp_root = yyjson_mut_obj(resp_doc);
     WkIPCReply reply = {0};
@@ -132,9 +136,9 @@ ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc)
     if(!wk_output_is_active(&wk->window.wk_outputs[output_idx])) goto already_inactive;
     yyjson_mut_obj_add_str(resp_doc, resp_root, "status", "ok");
 
-    WkResult wkres = wk_output_disable(&wk->window.wk_outputs[output_idx]);
+    wkres = wallkan_disable_output(wk, &wk->window.wk_outputs[output_idx]);
     if(wkres != WK_OK) goto err;
-    wk_renderer_output_cleanup(&wk->renderer, &wk->window.wk_outputs[output_idx]);
+
     reply = (WkIPCReply){
         .reply_code = WK_IPC_REPLY_OK,
         .message = "Successfully disabled output"
