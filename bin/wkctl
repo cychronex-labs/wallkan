@@ -1,38 +1,105 @@
 #!/usr/bin/env python3
+import argparse
 import socket
 import os
 import json
-from sys import stderr
 import sys
 
-def get_socket_path():
+
+def cmd_quit(args) -> dict:
+    return {"cmd": "quit"}
+
+def cmd_output_list(args) -> dict:
+    return {"cmd": "output_list"}
+
+def cmd_output_enable(args) -> dict:
+    return {"cmd": "output_enable", "index": args.index}
+
+def cmd_output_disable(args) -> dict:
+    return {"cmd": "output_disable", "index": args.index}
+
+
+def get_socket_path() -> str:
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if runtime_dir:
         return os.path.join(runtime_dir, "wallkan.sock")
     return f"/tmp/wallkan-{os.getuid()}.sock"
 
-def setup_client_sock(sock_path):
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        sock.connect(sock_path)
-        return sock
-    except (FileNotFoundError, ConnectionRefusedError):
-        print("Error: wallkan daemon is not running.", file=sys.stderr)
-        sys.exit(1)
 
-def send_command(sock, payload: dict):
-    message = json.dumps(payload).encode('utf-8') + b'\n'
-    sock.sendall(message)
-    response_data = sock.recv(4096)
-    return json.loads(response_data.decode('utf-8'))
+class WkSocket:
+    def __init__(self, sock_path: str):
+        self.sock_path = sock_path
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            self.sock.connect(self.sock_path)
+        except (FileNotFoundError, ConnectionRefusedError):
+            print("Error: wallkan daemon is not running.", file=sys.stderr)
+            sys.exit(1)
 
-def cleanup(sock):
-    sock.close()
+    def send_command(self, cmd: dict) -> dict:
+        message = json.dumps(cmd).encode("utf-8") + b"\n"
+        self.sock.sendall(message)
+
+        response_data = self.sock.recv(4096)
+        if not response_data:
+            return {"status": "error", "message": "Connection closed by peer"}
+
+        response_json = json.loads(response_data.decode("utf-8"))
+        response_json["cmd"] = cmd["cmd"]
+        return response_json
+
+    def close(self):
+        self.sock.close()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="wkctl",
+        description="Controller script for the wallkan daemon.",
+        epilog="""Examples:
+  wkctl quit
+  wkctl output enable 0
+  wkctl output disable 1
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    root_subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # --- Root command: quit ---
+    quit_parser = root_subparsers.add_parser("quit", help="Stop the wallkan daemon")
+    quit_parser.set_defaults(func=cmd_quit)
+
+    # --- Subsystem: output ---
+    output_parser = root_subparsers.add_parser("output", help="Manage displays")
+    output_subparsers = output_parser.add_subparsers(dest="action", required=True)
+
+    # --- Subcommand: output disable <index> ---
+    output_list_parser = output_subparsers.add_parser("list", help="List all display outputs")
+    output_list_parser.set_defaults(func=cmd_output_list)
+
+    # --- Subcommand: output enable <index> ---
+    output_enable_parser = output_subparsers.add_parser("enable", help="Enable a display output")
+    output_enable_parser.add_argument("index", type=int, help="Output display index")
+    output_enable_parser.set_defaults(func=cmd_output_enable)
+
+    # --- Subcommand: output disable <index> ---
+    output_disable_parser = output_subparsers.add_parser("disable", help="Disable a display output")
+    output_disable_parser.add_argument("index", type=int, help="Output display index")
+    output_disable_parser.set_defaults(func=cmd_output_disable)
+
+    return parser
+
 
 if __name__ == "__main__":
-    sock = setup_client_sock(get_socket_path())
-    response = send_command(sock,{
-        "cmd": "quit"
-    })
-    print(response)
-    cleanup(sock)
+    parser = build_parser()
+    args = parser.parse_args()
+
+    payload = args.func(args)
+
+    sock = WkSocket(get_socket_path())
+    try:
+        response = sock.send_command(payload)
+        print(json.dumps(response, indent=2))
+    finally:
+        sock.close()
