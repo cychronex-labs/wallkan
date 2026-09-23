@@ -10,6 +10,8 @@
 #include "window/window.h"
 #include "renderer/instance.h"
 
+#define MAX_VK_INSTANCE_EXT_COUNT 4
+
 struct ExtensionList {
     bool surface;
     bool wayland_surface;
@@ -74,10 +76,12 @@ scan_extensions(ArenaAllocator *alloc, struct ExtensionList *ext_list)
             LOG("scan_extensions: Found extension %s!", VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
             ext_list->wayland_surface = true;
         }
+        #ifndef NDEBUG
         if(strcmp(extension_props->extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0){
             LOG("scan_extensions: Found extension %s!", VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
             ext_list->debug_utils = true;
         }
+        #endif
     }
 
     // Validate
@@ -117,8 +121,8 @@ scan_validation_layers(ArenaAllocator *alloc, bool *validation_layer_available)
     if(wkres != WK_OK) goto err;
 
     if(total_layers == 0) {
-        wkres = WK_ERR(WK_ERR_VK_INSTANCE_LAYER_ENUMERATION_FAILED, "Layer count = 0!");
-        goto err;
+        *validation_layer_available = false;
+        return WK_OK;
     }
 
     layers = arena_alloc(alloc, sizeof(VkLayerProperties) * total_layers);
@@ -240,7 +244,7 @@ wk_instance_init(ArenaAllocator *alloc, WallkanInstance *wk_instance)
     bool validation_layer_available = false;
     WK_TRY(scan_extensions(alloc, &ext_list));
 
-    const char *total_extensions[3] = {0};
+    const char *total_extensions[MAX_VK_INSTANCE_EXT_COUNT] = {0};
     const char *layers[] = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -248,13 +252,15 @@ wk_instance_init(ArenaAllocator *alloc, WallkanInstance *wk_instance)
     uint32_t ext_count = 0;
     enable_extensions(&instance_create_info, &ext_list, total_extensions, &ext_count);
 
-    if(ext_list.debug_utils)
+    #ifndef NDEBUG
+    if(ext_list.debug_utils){
         WK_TRY(scan_validation_layers(alloc, &validation_layer_available));
-
-    if(validation_layer_available){
-        instance_create_info.enabledLayerCount = 1;
-        instance_create_info.ppEnabledLayerNames = layers;
+        if(validation_layer_available){
+            instance_create_info.enabledLayerCount = 1;
+            instance_create_info.ppEnabledLayerNames = layers;
+        }
     }
+    #endif
 
     WK_TRY(EXPECT_VK(
         vkCreateInstance(&instance_create_info, NULL, &(wk_instance->vk_instance)),
@@ -277,10 +283,11 @@ wk_instance_cleanup(WallkanInstance *wk_instance)
             wk_instance->vk_instance,"vkDestroyDebugUtilsMessengerEXT");
         if(!vk_debug_destroy_func){
             WARN("wk_instance_cleanup: Could not get the address of vkDestroyDebugUtilsMessengerEXT!");
+        }else{
+            LOG("wk_instance_cleanup: Destroying debug messenger...");
+            vk_debug_destroy_func(wk_instance->vk_instance,
+                wk_instance->debug_messenger, NULL);
         }
-        LOG("wk_instance_cleanup: Destroying debug messenger...");
-        vk_debug_destroy_func(wk_instance->vk_instance,
-            wk_instance->debug_messenger, NULL);
         wk_instance->debug_messenger = VK_NULL_HANDLE;
     }
     if(wk_instance->vk_instance != VK_NULL_HANDLE){
