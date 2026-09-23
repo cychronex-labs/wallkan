@@ -5,7 +5,7 @@
 #include "arena_alloc.h"
 #include "events.h"
 #define MAX_IPC_BUFFER_SIZE 512
-
+#define MAX_IPC_CLIENTS 8
 typedef struct Wallkan Wallkan;
 
 typedef struct CommandProcessor {
@@ -20,9 +20,9 @@ typedef struct WallkanIpc {
     char socket_path[108];
     WallkanEventHandler *wk_ev_handler;
     CommandProcessor cmd_processor;
-    int client_fd;
-    bool client_in_connection;
-    bool reply_is_due;
+    int client_fd[MAX_IPC_CLIENTS];
+    uint8_t active_client_bits;
+    uint8_t reply_is_due_bits;
 } WallkanIpc;
 
 typedef enum IPCCommandCodes {
@@ -48,16 +48,19 @@ WkResult
 wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler);
 
 WkResult
-wk_ipc_handle_connection(ArenaAllocator *alloc, Wallkan *wk);
-
-bool
-wk_ipc_reply_pending(WallkanIpc *wk_ipc);
+wk_ipc_accept_connection(Wallkan *wk, uint32_t *out_client_idx);
 
 WkResult
-wk_ipc_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply);
+wk_ipc_read_client(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx);
+
+bool
+wk_ipc_reply_pending(WallkanIpc *wk_ipc, uint32_t client_idx);
+
+WkResult
+wk_ipc_reply(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCReply *reply);
 
 void
-wk_ipc_clean_client_data(WallkanIpc *wk_ipc);
+wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx);
 
 void
 wk_ipc_cleanup(WallkanIpc *wk_ipc);

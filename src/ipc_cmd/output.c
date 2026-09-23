@@ -29,7 +29,7 @@ static yyjson_mut_val *create_output_obj(const Wallkan *wk, yyjson_mut_doc *resp
 }
 
 WkResult
-ipc_cmd_output_list(Wallkan *wk)
+ipc_cmd_output_list(Wallkan *wk, uint32_t client_idx)
 {
     // Setup yyjson
     yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
@@ -43,7 +43,7 @@ ipc_cmd_output_list(Wallkan *wk)
         yyjson_mut_val *output_obj = create_output_obj(wk, resp_doc, i);
         if(output_obj) yyjson_mut_arr_append(outputs_arr_obj, output_obj);
     }
-    wk_ipc_reply(&wk->ipc, &(WkIPCReply){
+    wk_ipc_reply(&wk->ipc, client_idx, &(WkIPCReply){
         .reply_code = WK_IPC_REPLY_OK,
         .response_doc = resp_doc
     });
@@ -51,7 +51,7 @@ ipc_cmd_output_list(Wallkan *wk)
 }
 
 WkResult
-ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc)
+ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc, uint32_t client_idx)
 {
     // Why still receive alloc when Wallkan have it?
     // To mark that this function uses ArenaAllocator.
@@ -86,7 +86,7 @@ ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc)
         .reply_code = WK_IPC_REPLY_OK,
         .message = "Successfully enabled output!"
     };
-    WK_TRY(wk_ipc_reply(&wk->ipc, &reply));
+    WK_TRY(wk_ipc_reply(&wk->ipc, client_idx, &reply));
     return WK_OK;
 invalid_cmd:
     yyjson_mut_obj_add_str(resp_doc, resp_root, "status", "error");
@@ -95,14 +95,14 @@ invalid_cmd:
         .reply_code = WK_IPC_REPLY_INVALID_DATA,
     };
     strncpy(reply.message, msg, sizeof(reply.message));
-    wk_ipc_reply(&wk->ipc, &reply);
+    wk_ipc_reply(&wk->ipc, client_idx, &reply);
     return WK_OK;
 already_active:
     reply = (WkIPCReply){
         .reply_code = WK_IPC_REPLY_OK,
         .message =  "Output is already active!"
     };
-    wk_ipc_reply(&wk->ipc, &reply);
+    wk_ipc_reply(&wk->ipc, client_idx, &reply);
     return WK_OK;
 err:
     reply = (WkIPCReply){
@@ -110,12 +110,12 @@ err:
     };
     snprintf(reply.message, sizeof(reply.message), "Failed to enable output %u, error: %d!",
         output_idx, wkres);
-    WK_TRY(wk_ipc_reply(&wk->ipc, &reply));
+    WK_TRY(wk_ipc_reply(&wk->ipc, client_idx, &reply));
     return WK_OK;
 }
 
 WkResult
-ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc)
+ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc, uint32_t client_idx)
 {
     WkResult wkres = WK_OK;
     yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
@@ -143,7 +143,7 @@ ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc)
         .reply_code = WK_IPC_REPLY_OK,
         .message = "Successfully disabled output"
     };
-    WK_TRY(wk_ipc_reply(&wk->ipc, &reply));
+    WK_TRY(wk_ipc_reply(&wk->ipc, client_idx, &reply));
     return WK_OK;
 invalid_cmd:
     yyjson_mut_obj_add_str(resp_doc, resp_root, "status", "error");
@@ -152,14 +152,14 @@ invalid_cmd:
         .reply_code = WK_IPC_REPLY_INVALID_DATA,
     };
     strncpy(reply.message, msg, sizeof(reply.message));
-    wk_ipc_reply(&wk->ipc, &reply);
+    wk_ipc_reply(&wk->ipc, client_idx, &reply);
     return WK_OK;
 already_inactive:
     reply = (WkIPCReply){
         .reply_code = WK_IPC_REPLY_OK,
         .message =  "Output is already disabled!"
     };
-    wk_ipc_reply(&wk->ipc, &reply);
+    wk_ipc_reply(&wk->ipc, client_idx, &reply);
     return WK_OK;
 err:
     reply = (WkIPCReply){
@@ -167,6 +167,6 @@ err:
     };
     snprintf(reply.message, sizeof(reply.message), "Failed to disable output %u, error: %d!",
         output_idx, wkres);
-    WK_TRY(wk_ipc_reply(&wk->ipc, &reply));
+    WK_TRY(wk_ipc_reply(&wk->ipc, client_idx, &reply));
     return WK_OK;
 }

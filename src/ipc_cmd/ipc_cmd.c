@@ -6,21 +6,22 @@
 #include "ipc_cmd/quit.h"
 #include "subprojects/yyjson/yyjson.h"
 #include "wallkan.h"
+#include <stdint.h>
 
 WkResult
-ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk)
+ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t client_idx)
 {
     if (!doc) {
-        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+        wk_ipc_reply(&wk->ipc, client_idx, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_INVALID_DATA,
             .message = "Invalid json format!",
         });
         return WK_OK;
     }
     yyjson_val *root = yyjson_doc_get_root(doc);
-    wk->ipc.reply_is_due = true;
+    wk->ipc.reply_is_due_bits |= (1 << client_idx);
     if (!yyjson_is_obj(root)) {
-        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+        wk_ipc_reply(&wk->ipc, client_idx, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_INVALID_DATA,
             .message = "Invalid json format!",
         });
@@ -28,32 +29,32 @@ ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk)
     }
     const char *cmd = yyjson_get_str(yyjson_obj_get(root, "cmd"));
     if(!cmd){
-        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+        wk_ipc_reply(&wk->ipc, client_idx, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_INVALID_DATA,
             .message = "Invalid json format, 'cmd' is missing!",
         });
         return WK_OK;
     }
     if(strcmp(cmd, "ping") == 0){
-        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+        wk_ipc_reply(&wk->ipc, client_idx, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_OK,
             .message = "Yeah. I am alive!",
         });
     }
     else if(strcmp(cmd, "quit") == 0){
-        ipc_cmd_quit(wk);
+        ipc_cmd_quit(wk, client_idx);
     }
     else if(strcmp(cmd, "output_list") == 0){
-        ipc_cmd_output_list(wk);
+        ipc_cmd_output_list(wk, client_idx);
     }
     else if(strcmp(cmd, "output_enable") == 0){
-        ipc_cmd_output_enable(alloc, wk, doc);
+        ipc_cmd_output_enable(alloc, wk, doc, client_idx);
     }
     else if(strcmp(cmd, "output_disable") == 0){
-        ipc_cmd_output_disable(wk, doc);
+        ipc_cmd_output_disable(wk, doc, client_idx);
     }
     else{
-        wk_ipc_reply(&wk->ipc, &(const WkIPCReply){
+        wk_ipc_reply(&wk->ipc, client_idx, &(const WkIPCReply){
             .reply_code = WK_IPC_REPLY_UNKNOWN_COMMAND,
             .message = "Unknown command",
         });

@@ -4,6 +4,6 @@
 #include "wallkan.h"
 
 WkResult
-ipc_cmd_quit(Wallkan *wk);
+ipc_cmd_quit(Wallkan *wk, uint32_t client_idx);
 
 #endif

@@ -15,11 +15,12 @@
 #include "arena_alloc.h"
 
 enum {
-    POLL_WAYLAND = 0,
+    POLL_WAYLAND,
     POLL_IPC_SERVER,
-    POLL_IPC_CLIENT,
-    POLL_COUNT,
+    POLL_IPC_CLIENT_START,
+    POLL_COUNT = POLL_IPC_CLIENT_START + MAX_IPC_CLIENTS,
 };
+
 // Callbacks
 static WkResult
 cb_on_quit(const WkEvent *event, void *data)
@@ -54,10 +55,13 @@ setup_polling(Wallkan *wk, struct pollfd *poll_fds)
         .fd = wk->ipc.server_fd,
         .events = POLLIN
     };
-    poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
-        .fd = -1,
-        .events = 0
-    };
+    for (uint32_t i=POLL_IPC_CLIENT_START; i<POLL_COUNT; i++) {
+        poll_fds[i] = (struct pollfd){
+            .fd = -1,
+            .events = POLLIN
+        };
+    }
+
 }
 
 
@@ -90,18 +94,40 @@ static void
 check_for_ipc_events(ArenaAllocator *alloc, Wallkan *wk, struct pollfd *poll_fds)
 {
     if (poll_fds[POLL_IPC_SERVER].revents & POLLIN) {
-        WkResult wkres = wk_ipc_handle_connection(alloc, wk);
-        poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
-            .fd = wk->ipc.client_fd,
-            .events = 0
-        };
+        uint32_t client_idx = UINT32_MAX;
+        WkResult wkres = wk_ipc_accept_connection(wk, &client_idx);
+        if(client_idx != UINT32_MAX){
+            poll_fds[POLL_IPC_CLIENT_START+client_idx] = (struct pollfd){
+                .fd = wk->ipc.client_fd[client_idx],
+                .events = POLLIN
+            };
+        }
         if(wkres != WK_OK) WARN("check_for_ipc_events: Client connection aborted with code %d", wkres);
     }
-    if (poll_fds[POLL_IPC_CLIENT].revents & (POLLHUP | POLLERR)) {
-        wk_ipc_clean_client_data(&wk->ipc);
-        poll_fds[POLL_IPC_CLIENT] = (struct pollfd){
-            .fd = -1
-        };
+
+    uint8_t active_mask = wk->ipc.active_client_bits;
+    while(active_mask != 0){
+        uint32_t client_idx = bit_pop_lsb(&active_mask);
+        uint32_t poll_idx = POLL_IPC_CLIENT_START+client_idx;
+        if (poll_fds[poll_idx].revents & POLLIN) {
+            WkResult wkres = wk_ipc_read_client(alloc, wk, client_idx);
+            if(wkres != WK_OK) WARN("check_for_ipc_events: Client %d read error!", client_idx);
+        }
+        // In case of client disconnection if we did not update poll_fds but poll()
+        // it will result in POLLNVAL which leads to poll to return immediately
+        // causing single core usage to spike to 100%
+        if(wk->ipc.client_fd[client_idx] == -1){
+            poll_fds[poll_idx] = (struct pollfd){
+                .fd = -1
+            };
+        }
+        else if (poll_fds[poll_idx].revents & (POLLHUP | POLLERR)) {
+            wk_ipc_disconnect_client(&wk->ipc, client_idx);
+            poll_fds[poll_idx] = (struct pollfd){
+                .fd = -1
+            };
+        }
+
     }
 }
 
@@ -220,7 +246,6 @@ main(void)
     while(wk.running){
         arena_alloc_reset(&wk.arena_alloc);
 
-        poll_fds[POLL_IPC_CLIENT].fd = wk.ipc.client_fd;
         wkres = wk_window_wl_prepare_read(&wk.window);
         if(wkres != WK_OK) goto cleanup;
 

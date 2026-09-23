@@ -16,6 +16,7 @@
 #include "ipc.h"
 #include "ipc_cmd/ipc_cmd.h"
 
+
 static WkResult
 get_socket_path(char *sock_path, size_t max_len)
 {
@@ -71,9 +72,12 @@ setup_server_sock(WallkanIpc *wk_ipc, struct sockaddr_un *addr)
 }
 
 bool
-wk_ipc_reply_pending(WallkanIpc *wk_ipc)
+wk_ipc_reply_pending(WallkanIpc *wk_ipc, uint32_t client_idx)
 {
-    return wk_ipc->reply_is_due && wk_ipc->client_in_connection && wk_ipc->client_fd != -1;
+    uint8_t client_mask = (1 << client_idx);
+    return (wk_ipc->reply_is_due_bits & client_mask) &&
+        (wk_ipc->active_client_bits & client_mask) &&
+        wk_ipc->client_fd[client_idx] != -1;
 }
 
 static yyjson_mut_doc*
@@ -96,7 +100,7 @@ build_default_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
 
 // Will free the doc!
 static WkResult
-wk_ipc_reply_blind(WallkanIpc *wk_ipc, const WkIPCReply *reply)
+wk_ipc_reply_blind(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCReply *reply)
 {
     yyjson_mut_doc *doc;
     if(reply->response_doc)
@@ -108,53 +112,83 @@ wk_ipc_reply_blind(WallkanIpc *wk_ipc, const WkIPCReply *reply)
     char *json_str =
         yyjson_mut_write_opts(doc, 0, &wk_ipc->cmd_processor.json_reply_alc, &json_len, NULL);
     if (json_str && json_len > 0) {
-        send(wk_ipc->client_fd, json_str, json_len, MSG_NOSIGNAL);
-        send(wk_ipc->client_fd, "\n", 1, MSG_NOSIGNAL);
+        send(wk_ipc->client_fd[client_idx], json_str, json_len, MSG_NOSIGNAL);
+        send(wk_ipc->client_fd[client_idx], "\n", 1, MSG_NOSIGNAL);
     }
     yyjson_mut_doc_free(doc);
     return WK_OK;
 }
 
 WkResult
-wk_ipc_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
+wk_ipc_reply(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCReply *reply)
 {
-    if(!wk_ipc_reply_pending(wk_ipc)){
+    if(!wk_ipc_reply_pending(wk_ipc, client_idx)){
         WARN("wk_ipc_reply: Reply too late. Connection lost!");
-        wk_ipc_clean_client_data(wk_ipc);
+        wk_ipc_disconnect_client(wk_ipc, client_idx);
         return WK_OK;
     }
-    wk_ipc->reply_is_due = false;
-    WK_TRY(wk_ipc_reply_blind(wk_ipc, reply));
-    wk_ipc_clean_client_data(wk_ipc);
+    wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
+    WK_TRY(wk_ipc_reply_blind(wk_ipc, client_idx, reply));
     return WK_OK;
 }
 
 WkResult
-wk_ipc_handle_connection(ArenaAllocator *alloc, Wallkan *wk)
+wk_ipc_accept_connection(Wallkan *wk, uint32_t *out_client_idx)
 {
-    char buf[MAX_IPC_BUFFER_SIZE];
+    WkResult wkres = WK_OK;
+    uint32_t client_idx = 0;
+    uint8_t inactive_slots = ~(wk->ipc.active_client_bits);
+    if(inactive_slots == 0){
+        WARN("wk_ipc_accept_connection: Max amount of clients reached!");
+        // accept connection so POLLIN is consumed
+        int rejected_fd = accept4(wk->ipc.server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        if (rejected_fd >= 0) {
+            close(rejected_fd);
+        }
+        return WK_OK;
+    }else{
+        // Find first inactive slot
+        client_idx = __builtin_ctz(inactive_slots);
+    }
     int client_fd = accept4(wk->ipc.server_fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-    yyjson_doc *doc = NULL;
-    WkResult wkres = WK_OK;
     if(client_fd < 0){
-        if(errno != EAGAIN && errno != EWOULDBLOCK){
-            wkres = WK_ERR(WK_ERR_IPC_SOCKET_ACCEPT_FAILURE,
-                "Failed to accept connection, errno: %s", strerror(errno));
+        if(errno == EAGAIN || errno == EWOULDBLOCK){
+            return WK_OK;
         };
-        goto err;
-    }
-    wk->ipc.client_fd = client_fd;
-    wk->ipc.client_in_connection = true;
-    ssize_t bytes_read = read(client_fd, buf, sizeof(buf) - 1);
-    if(bytes_read <= 0){
-        if(errno != EAGAIN && errno != EWOULDBLOCK){
-            wkres = WK_ERR(WK_ERR_IPC_SOCKET_READ_FAILURE,
-                "Failed to read from client, errno: %s", strerror(errno));
-        }
+        wkres = WK_ERR(WK_ERR_IPC_SOCKET_ACCEPT_FAILURE,
+            "Failed to accept connection, errno: %s", strerror(errno));
         goto err;
     }
 
+    wk->ipc.client_fd[client_idx] = client_fd;
+    wk->ipc.active_client_bits |= (1 << client_idx);
+    *out_client_idx = client_idx;
+    return WK_OK;
+err:
+    wk_ipc_disconnect_client(&wk->ipc, client_idx);
+    return wkres;
+}
+
+WkResult
+wk_ipc_read_client(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx)
+{
+    WkResult wkres = WK_OK;
+    yyjson_doc *doc = NULL;
+    char buf[MAX_IPC_BUFFER_SIZE];
+    ssize_t bytes_read = read(wk->ipc.client_fd[client_idx], buf, sizeof(buf) - 1);
+    if (bytes_read == 0) {
+        wk_ipc_disconnect_client(&wk->ipc, client_idx);
+        return WK_OK;
+    }
+    if(bytes_read <= 0){
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return WK_OK;
+        }
+        wkres = WK_ERR(WK_ERR_IPC_SOCKET_READ_FAILURE,
+            "Failed to read from client, errno: %s", strerror(errno));
+        goto err;
+    }
     // Remove newline delimiter if exists
     if(buf[bytes_read - 1] == '\n'){
         buf[bytes_read - 1] = '\0';
@@ -163,31 +197,32 @@ wk_ipc_handle_connection(ArenaAllocator *alloc, Wallkan *wk)
         buf[bytes_read] = '\0';
     }
     doc = yyjson_read_opts(buf, bytes_read, 0, &wk->ipc.cmd_processor.json_parse_alc, NULL);
-    LOG("wk_ipc_handle_connection: Recieved: %s", buf);
-    if(ipc_cmd_handle(alloc, doc, wk) != WK_OK) goto err;
+    LOG("wk_ipc_read_client: Recieved: %s", buf);
+    if(ipc_cmd_handle(alloc, doc, wk, client_idx) != WK_OK) goto err;
     goto cleanup;
 err:
-    wk_ipc_clean_client_data(&wk->ipc);
+    wk_ipc_disconnect_client(&wk->ipc, client_idx);
 cleanup:
     yyjson_doc_free(doc);
     return wkres;
 }
 
 void
-wk_ipc_clean_client_data(WallkanIpc *wk_ipc)
+wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
 {
-    if(wk_ipc->client_fd > -1){
-        if (wk_ipc->reply_is_due) {
-            wk_ipc_reply_blind(wk_ipc, &(const WkIPCReply){
+    if(wk_ipc->client_fd[client_idx] > -1){
+        if (wk_ipc->reply_is_due_bits & (1 << client_idx)) {
+            wk_ipc_reply_blind(wk_ipc, client_idx, &(const WkIPCReply){
                 .reply_code = WK_IPC_REPLY_INTERNAL_ERROR,
                 .message = "Internal error occurred! command unhandled or reply dropped",
             });
         }
-        close(wk_ipc->client_fd);
+        close(wk_ipc->client_fd[client_idx]);
+        LOG("wk_ipc_disconnect_client: Client, fd: %d disconnected!", wk_ipc->client_fd[client_idx]);
     }
-    wk_ipc->client_fd = -1;
-    wk_ipc->client_in_connection = false;
-    wk_ipc->reply_is_due = false;
+    wk_ipc->client_fd[client_idx] = -1;
+    wk_ipc->active_client_bits &= ~(1 << client_idx);
+    wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
 }
 
 static WkResult
@@ -216,7 +251,9 @@ WkResult
 wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler)
 {
     wk_ipc->server_fd = -1;
-    wk_ipc->client_fd = -1;
+    for (uint32_t i=0; i<MAX_IPC_CLIENTS; i++) {
+        wk_ipc->client_fd[i] = -1;
+    }
     wk_ipc->wk_ev_handler = wk_ev_handler;
     struct sockaddr_un addr = {
         .sun_family = AF_UNIX
@@ -232,7 +269,10 @@ wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler)
 void
 wk_ipc_cleanup(WallkanIpc *wk_ipc)
 {
-    wk_ipc_clean_client_data(wk_ipc);
+    for (uint32_t i=0; i<MAX_IPC_CLIENTS; i++) {
+        wk_ipc_disconnect_client(wk_ipc, i);
+        wk_ipc->client_fd[i] = -1;
+    }
     if(wk_ipc->server_fd >= 0){
         close(wk_ipc->server_fd);
         wk_ipc->server_fd = -1;

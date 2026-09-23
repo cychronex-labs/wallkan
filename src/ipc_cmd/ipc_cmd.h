@@ -4,6 +4,6 @@
 #include "wallkan.h"
 
 WkResult
-ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk);
+ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t client_idx);
 
 #endif
