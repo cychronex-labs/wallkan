@@ -203,7 +203,6 @@ wk_swapchain_init(ArenaAllocator *alloc, WallkanSwapchain *wk_swapchain, Wallkan
 void
 wk_swapchain_cleanup(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device)
 {
-    LOG("wk_swapchain_cleanup: Destroying swapchain...");
     if(wk_swapchain->image_views){
         LOG("wk_swapchain_cleanup: Destroying swapchain image views...");
         for (uint32_t i=0; i<wk_swapchain->image_count; i++) {
@@ -221,7 +220,7 @@ wk_swapchain_cleanup(WallkanSwapchain *wk_swapchain, WallkanDevice *wk_device)
         wk_swapchain->images = NULL;
     }
     if(wk_swapchain->vk_swapchain){
-        LOG("wk_swapchain_cleanup: Destroying VkSwapchainKHR...");
+        LOG("wk_swapchain_cleanup: Destroying swapchain...");
         vkDestroySwapchainKHR(wk_device->device, wk_swapchain->vk_swapchain, NULL);
         wk_swapchain->vk_swapchain = VK_NULL_HANDLE;
     }
