@@ -4,7 +4,7 @@
 #include <yyjson.h>
 #include "arena_alloc.h"
 #include "events.h"
-#define MAX_IPC_BUFFER_SIZE 512
+#define MAX_IPC_BUFFER_SIZE (8 * 1024)
 #define MAX_IPC_CLIENTS 8
 typedef struct Wallkan Wallkan;
 
@@ -18,9 +18,12 @@ typedef struct CommandProcessor {
 typedef struct WallkanIpc {
     int server_fd;
     char socket_path[108];
+    char client_msg_buf[MAX_IPC_CLIENTS][MAX_IPC_BUFFER_SIZE];
+    uint32_t client_msg_size[MAX_IPC_CLIENTS];
     WallkanEventHandler *wk_ev_handler;
     CommandProcessor cmd_processor;
     int client_fd[MAX_IPC_CLIENTS];
+    uint8_t msg_trucated_client_bits;
     uint8_t active_client_bits;
     uint8_t reply_is_due_bits;
 } WallkanIpc;

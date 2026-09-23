@@ -59,6 +59,5 @@ ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t cli
             .message = "Unknown command",
         });
     }
-
     return WK_OK;
 }

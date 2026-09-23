@@ -1,6 +1,8 @@
 #include <limits.h>
 #include <linux/limits.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -15,7 +17,6 @@
 #include "subprojects/yyjson/yyjson.h"
 #include "ipc.h"
 #include "ipc_cmd/ipc_cmd.h"
-
 
 static WkResult
 get_socket_path(char *sock_path, size_t max_len)
@@ -175,8 +176,15 @@ wk_ipc_read_client(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx)
 {
     WkResult wkres = WK_OK;
     yyjson_doc *doc = NULL;
-    char buf[MAX_IPC_BUFFER_SIZE];
-    ssize_t bytes_read = read(wk->ipc.client_fd[client_idx], buf, sizeof(buf) - 1);
+
+    char *buf = wk->ipc.client_msg_buf[client_idx];
+    uint32_t buf_size = sizeof(wk->ipc.client_msg_buf[client_idx]);
+    uint32_t existing_len = wk->ipc.client_msg_size[client_idx];
+    uint32_t available_capacity = buf_size - existing_len;
+
+    ssize_t bytes_read = read(wk->ipc.client_fd[client_idx], buf+wk->ipc.client_msg_size[client_idx],
+        available_capacity);
+
     if (bytes_read == 0) {
         wk_ipc_disconnect_client(&wk->ipc, client_idx);
         return WK_OK;
@@ -189,27 +197,42 @@ wk_ipc_read_client(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx)
             "Failed to read from client, errno: %s", strerror(errno));
         goto err;
     }
-    // Remove newline delimiter if exists
-    if(buf[bytes_read - 1] == '\n'){
-        buf[bytes_read - 1] = '\0';
-        bytes_read--;
-    }else{
-        buf[bytes_read] = '\0';
+
+    uint32_t total_bytes = existing_len + (uint32_t)bytes_read;
+    char *cursor = buf;
+    char *cursor_end = buf + total_bytes;
+
+    uint32_t cmd_size = 0;
+    while(cursor < cursor_end){
+        uint32_t cursor_diff = (ptrdiff_t)(cursor_end - cursor);
+
+        char *newline = memchr(cursor, '\n', cursor_diff);
+        if(!newline){
+            memmove(buf, cursor, cursor_diff);
+            wk->ipc.client_msg_size[client_idx] = cursor_diff;
+            return WK_OK;
+        }
+        cmd_size = (ptrdiff_t)(newline - cursor);
+        LOG("wk_ipc_read_client: Recieved: %.*s", (int)cmd_size, cursor);
+        doc = yyjson_read_opts(cursor, cmd_size, 0, &wk->ipc.cmd_processor.json_parse_alc, NULL);
+        if(ipc_cmd_handle(alloc, doc, wk, client_idx) != WK_OK) goto err;
+        yyjson_doc_free(doc);
+        doc = NULL;
+        cursor+=cmd_size+1;
     }
-    doc = yyjson_read_opts(buf, bytes_read, 0, &wk->ipc.cmd_processor.json_parse_alc, NULL);
-    LOG("wk_ipc_read_client: Recieved: %s", buf);
-    if(ipc_cmd_handle(alloc, doc, wk, client_idx) != WK_OK) goto err;
-    goto cleanup;
+    wk->ipc.client_msg_size[client_idx] = 0;
+    return WK_OK;
 err:
-    wk_ipc_disconnect_client(&wk->ipc, client_idx);
-cleanup:
     yyjson_doc_free(doc);
+    wk_ipc_disconnect_client(&wk->ipc, client_idx);
     return wkres;
 }
 
 void
 wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
 {
+    memset(wk_ipc->client_msg_buf[client_idx], '\0', wk_ipc->client_msg_size[client_idx]);
+    wk_ipc->client_msg_size[client_idx] = 0;
     if(wk_ipc->client_fd[client_idx] > -1){
         if (wk_ipc->reply_is_due_bits & (1 << client_idx)) {
             wk_ipc_reply_blind(wk_ipc, client_idx, &(const WkIPCReply){
