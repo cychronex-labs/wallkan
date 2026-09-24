@@ -8,6 +8,7 @@
 
 typedef struct ArenaAllocator {
     void *addr;
+    uint32_t capacity;
     uint32_t used;
 } ArenaAllocator;
 
