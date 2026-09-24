@@ -1,5 +1,5 @@
-#ifndef WALLKAN_IPC_QUIT_H
-#define WALLKAN_IPC_QUIT_H
+#ifndef WALLKAN_IPC_CMD_QUIT_H
+#define WALLKAN_IPC_CMD_QUIT_H
 #include "err.h"
 #include "wallkan.h"
 

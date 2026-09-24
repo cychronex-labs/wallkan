@@ -1,5 +1,5 @@
-#ifndef WALLKAN_IPC_H
-#define WALLKAN_IPC_H
+#ifndef WALLKAN_IPC_SERVER_H
+#define WALLKAN_IPC_SERVER_H
 #include <stdint.h>
 #include <yyjson.h>
 #include "arena_alloc.h"
@@ -8,24 +8,16 @@
 #define MAX_IPC_CLIENTS 8
 typedef struct Wallkan Wallkan;
 
-typedef struct CommandProcessor {
-    uint32_t json_pool_size;
-    void *json_mem;
-    yyjson_alc json_parse_alc;
-    yyjson_alc json_reply_alc;
-} CommandProcessor;
-
 typedef struct WallkanIpc {
     int server_fd;
     char socket_path[108];
     char client_msg_buf[MAX_IPC_CLIENTS][MAX_IPC_BUFFER_SIZE];
     uint32_t client_msg_size[MAX_IPC_CLIENTS];
     WallkanEventHandler *wk_ev_handler;
-    CommandProcessor cmd_processor;
     int client_fd[MAX_IPC_CLIENTS];
-    uint8_t msg_trucated_client_bits;
     uint8_t active_client_bits;
     uint8_t reply_is_due_bits;
+    yyjson_alc json_alc;
 } WallkanIpc;
 
 typedef enum IPCCommandCodes {
@@ -48,7 +40,7 @@ typedef struct WkIPCReply{
 } WkIPCReply;
 
 WkResult
-wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler);
+wk_ipc_init(ArenaAllocator *alloc, WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler);
 
 WkResult
 wk_ipc_accept_connection(Wallkan *wk, uint32_t *out_client_idx);

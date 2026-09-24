@@ -8,7 +8,7 @@
 #include "common.h"
 #include "err.h"
 #include "events.h"
-#include "ipc.h"
+#include "ipc/server.h"
 #include "renderer/renderer.h"
 #include "window/outputs.h"
 #include "window/window.h"
@@ -217,7 +217,7 @@ main(void)
     wkres = wk_ev_handler_init(&wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
-    wkres = wk_ipc_init(&wk.ipc, &wk.event_handler);
+    wkres = wk_ipc_init(&wk.arena_alloc, &wk.ipc, &wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
 
     wkres = bind_all_events(&wk);

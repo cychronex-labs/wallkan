@@ -1,9 +1,8 @@
 #include "common.h"
 #include "err.h"
-#include "ipc_cmd/ipc_cmd.h"
-#include "ipc_cmd.h"
-#include "ipc_cmd/output.h"
-#include "ipc_cmd/quit.h"
+#include "ipc/cmd/handle.h"
+#include "ipc/cmd/output.h"
+#include "ipc/cmd/quit.h"
 #include "subprojects/yyjson/yyjson.h"
 #include "wallkan.h"
 #include <stdint.h>
@@ -59,5 +58,6 @@ ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t cli
             .message = "Unknown command",
         });
     }
+
     return WK_OK;
 }

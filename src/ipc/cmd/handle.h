@@ -1,5 +1,5 @@
-#ifndef WALLKAN_IPC_CMD_H
-#define WALLKAN_IPC_CMD_H
+#ifndef WALLKAN_IPC_CMD_HANDLE_H
+#define WALLKAN_IPC_CMD_HANDLE_H
 #include "err.h"
 #include "wallkan.h"
 

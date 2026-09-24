@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "arena_alloc.h"
 #include "events.h"
-#include "ipc.h"
+#include "ipc/server.h"
 #include "renderer/renderer.h"
 #include "window/window.h"
 

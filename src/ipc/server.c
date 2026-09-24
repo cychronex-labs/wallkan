@@ -1,5 +1,7 @@
 #include <limits.h>
 #include <linux/limits.h>
+#include <stdalign.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,12 +13,14 @@
 #include <string.h>
 #include <cwalk.h>
 #include <yyjson.h>
+#include "ipc/yyjson_alc.h"
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "events.h"
 #include "subprojects/yyjson/yyjson.h"
-#include "ipc.h"
-#include "ipc_cmd/ipc_cmd.h"
+#include "ipc/server.h"
+#include "ipc/cmd/handle.h"
 
 static WkResult
 get_socket_path(char *sock_path, size_t max_len)
@@ -84,7 +88,7 @@ wk_ipc_reply_pending(WallkanIpc *wk_ipc, uint32_t client_idx)
 static yyjson_mut_doc*
 build_default_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
 {
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(&wk_ipc->cmd_processor.json_reply_alc);
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(&wk_ipc->json_alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
     if(reply->reply_code == WK_IPC_REPLY_OK){
@@ -103,20 +107,23 @@ build_default_reply(WallkanIpc *wk_ipc, const WkIPCReply *reply)
 static WkResult
 wk_ipc_reply_blind(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCReply *reply)
 {
+    bool free_doc = false;
     yyjson_mut_doc *doc;
     if(reply->response_doc)
         doc = reply->response_doc;
-    else
+    else{
         doc = build_default_reply(wk_ipc, reply);
+        free_doc = true;
+    }
 
     size_t json_len = 0;
     char *json_str =
-        yyjson_mut_write_opts(doc, 0, &wk_ipc->cmd_processor.json_reply_alc, &json_len, NULL);
+        yyjson_mut_write_opts(doc, 0, &wk_ipc->json_alc, &json_len, NULL);
     if (json_str && json_len > 0) {
         send(wk_ipc->client_fd[client_idx], json_str, json_len, MSG_NOSIGNAL);
         send(wk_ipc->client_fd[client_idx], "\n", 1, MSG_NOSIGNAL);
     }
-    yyjson_mut_doc_free(doc);
+    if(free_doc) yyjson_mut_doc_free(doc);
     return WK_OK;
 }
 
@@ -130,6 +137,7 @@ wk_ipc_reply(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCReply *reply)
     }
     wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
     WK_TRY(wk_ipc_reply_blind(wk_ipc, client_idx, reply));
+
     return WK_OK;
 }
 
@@ -214,7 +222,7 @@ wk_ipc_read_client(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx)
         }
         cmd_size = (ptrdiff_t)(newline - cursor);
         LOG("wk_ipc_read_client: Recieved: %.*s", (int)cmd_size, cursor);
-        doc = yyjson_read_opts(cursor, cmd_size, 0, &wk->ipc.cmd_processor.json_parse_alc, NULL);
+        doc = yyjson_read_opts(cursor, cmd_size, 0, &wk->ipc.json_alc, NULL);
         if(ipc_cmd_handle(alloc, doc, wk, client_idx) != WK_OK) goto err;
         yyjson_doc_free(doc);
         doc = NULL;
@@ -231,7 +239,6 @@ err:
 void
 wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
 {
-    memset(wk_ipc->client_msg_buf[client_idx], '\0', wk_ipc->client_msg_size[client_idx]);
     wk_ipc->client_msg_size[client_idx] = 0;
     if(wk_ipc->client_fd[client_idx] > -1){
         if (wk_ipc->reply_is_due_bits & (1 << client_idx)) {
@@ -248,30 +255,8 @@ wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
     wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
 }
 
-static WkResult
-wk_ipc_init_cmd_processor(WallkanIpc *wk_ipc)
-{
-    wk_ipc->cmd_processor.json_pool_size = yyjson_read_max_memory_usage(MAX_IPC_BUFFER_SIZE, 0);
-    wk_ipc->cmd_processor.json_pool_size = (wk_ipc->cmd_processor.json_pool_size + 15) & ~15;
-
-    wk_ipc->cmd_processor.json_mem = malloc(wk_ipc->cmd_processor.json_pool_size * 2);
-    if(!wk_ipc->cmd_processor.json_mem){
-        return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to malloc!");
-    }
-    if(!yyjson_alc_pool_init(&wk_ipc->cmd_processor.json_parse_alc, wk_ipc->cmd_processor.json_mem,
-        wk_ipc->cmd_processor.json_pool_size)){
-            return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to init yyjson pool!");
-    }
-    void *next_block = (uint8_t*)wk_ipc->cmd_processor.json_mem + wk_ipc->cmd_processor.json_pool_size;
-    if(!yyjson_alc_pool_init(&wk_ipc->cmd_processor.json_reply_alc,next_block,
-        wk_ipc->cmd_processor.json_pool_size)){
-            return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Failed to init yyjson pool!");
-    }
-    return WK_OK;
-}
-
 WkResult
-wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler)
+wk_ipc_init(ArenaAllocator *alloc, WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler)
 {
     wk_ipc->server_fd = -1;
     for (uint32_t i=0; i<MAX_IPC_CLIENTS; i++) {
@@ -285,7 +270,7 @@ wk_ipc_init(WallkanIpc *wk_ipc, WallkanEventHandler *wk_ev_handler)
     memcpy(wk_ipc->socket_path, addr.sun_path, sizeof(addr.sun_path));
     WK_TRY(wk_ipc_ping(&addr));
     WK_TRY(setup_server_sock(wk_ipc, &addr));
-    WK_TRY(wk_ipc_init_cmd_processor(wk_ipc));
+    wk_ipc->json_alc = wk_yyjson_create_pool(alloc);
     return WK_OK;
 }
 
@@ -303,9 +288,5 @@ wk_ipc_cleanup(WallkanIpc *wk_ipc)
     if(wk_ipc->socket_path[0] != '\0'){
         unlink(wk_ipc->socket_path);
         wk_ipc->socket_path[0] = '\0';
-    }
-    if(wk_ipc->cmd_processor.json_mem){
-        free(wk_ipc->cmd_processor.json_mem);
-        wk_ipc->cmd_processor.json_mem = NULL;
     }
 }

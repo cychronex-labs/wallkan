@@ -1,4 +1,4 @@
-#include "ipc_cmd/quit.h"
+#include "ipc/cmd/quit.h"
 #include "wallkan.h"
 
 WkResult

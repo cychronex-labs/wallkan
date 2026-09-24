@@ -1,8 +1,8 @@
-#include "ipc_cmd/output.h"
+#include "ipc/cmd/output.h"
 #include "arena_alloc.h"
 #include "err.h"
 #include "events.h"
-#include "ipc.h"
+#include "ipc/server.h"
 #include "subprojects/yyjson/yyjson.h"
 #include "wallkan.h"
 #include "window/outputs.h"
@@ -32,7 +32,7 @@ WkResult
 ipc_cmd_output_list(Wallkan *wk, uint32_t client_idx)
 {
     // Setup yyjson
-    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
+    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.json_alc);
     yyjson_mut_val *resp_root = yyjson_mut_obj(resp_doc);
     yyjson_mut_doc_set_root(resp_doc, resp_root);
 
@@ -47,6 +47,7 @@ ipc_cmd_output_list(Wallkan *wk, uint32_t client_idx)
         .reply_code = WK_IPC_REPLY_OK,
         .response_doc = resp_doc
     });
+    yyjson_mut_doc_free(resp_doc);
     return WK_OK;
 }
 
@@ -58,7 +59,7 @@ ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc, u
     (void)alloc;
     // Setup yyjson
     WkResult wkres = WK_OK;
-    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
+    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.json_alc);
     yyjson_mut_val *resp_root = yyjson_mut_obj(resp_doc);
     WkIPCReply reply = {0};
     char *msg = "";
@@ -118,7 +119,7 @@ WkResult
 ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc, uint32_t client_idx)
 {
     WkResult wkres = WK_OK;
-    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.cmd_processor.json_reply_alc);
+    yyjson_mut_doc *resp_doc = yyjson_mut_doc_new(&wk->ipc.json_alc);
     yyjson_mut_val *resp_root = yyjson_mut_obj(resp_doc);
     WkIPCReply reply = {0};
     yyjson_val *cmd_root = yyjson_doc_get_root(cmd_doc);
