@@ -21,18 +21,10 @@ arena_alloc_init(ArenaAllocator *allocator)
     return WK_OK;
 }
 
-static uint32_t
-align_up(uint32_t size)
-{
-    uint32_t align = alignof(max_align_t);
-    return (size + (align - 1)) & ~(align-1);
-}
-
 void *
 arena_alloc(ArenaAllocator *allocator, uint32_t size)
 {
-    uint32_t aligned_size = align_up(size);
-
+    uint32_t aligned_size = (size + 15) & ~(15);
     if (!allocator->addr) return NULL;
     if(aligned_size > allocator->capacity - allocator->used) return NULL;
     uint8_t *next_addr = (uint8_t*)allocator->addr + allocator->used;
