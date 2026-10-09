@@ -4,12 +4,16 @@
 #include "wallkan.h"
 
 WkResult
+ipc_cmd_output_handle(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx, const char *action,
+    yyjson_val *cmd_root);
+
+WkResult
 ipc_cmd_output_list(Wallkan *wk, uint32_t client_idx);
 
 WkResult
-ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_doc *cmd_doc, uint32_t client_idx);
+ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_val *cmd_root, uint32_t client_idx);
 
 WkResult
-ipc_cmd_output_disable(Wallkan *wk, yyjson_doc *cmd_doc, uint32_t client_idx);
+ipc_cmd_output_disable(ArenaAllocator *alloc, Wallkan *wk, yyjson_val *cmd_root, uint32_t client_idx);
 
 #endif

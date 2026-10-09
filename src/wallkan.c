@@ -10,9 +10,12 @@
 #include "events.h"
 #include "ipc/server.h"
 #include "renderer/renderer.h"
+#include "renderer/scene/scene.h"
+#include "surface/surface.h"
 #include "window/outputs.h"
 #include "window/window.h"
 #include "arena_alloc.h"
+#include "wksp/parser.h"
 
 enum {
     POLL_WAYLAND,
@@ -172,13 +175,16 @@ WkResult
 wallkan_enable_output(Wallkan *wk, WallkanOutput *wk_output)
 {
     WkResult wkres = WK_OK;
-    wkres = wk_output_enable(wk_output);
-    if(wkres != WK_OK) goto err;
-    wkres = wk_renderer_output_init(&wk->arena_alloc, &wk->renderer, wk_output);
+    if(!wk_output->got_details) return WK_ERR(WK_ERR_UNDISCOVERED_MONITOR, "Monitor/Output is not discovered!");
+    WK_TRY(wk_output_enable(wk_output));
+
+    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    wkres = wk_surface_init(&wk->arena_alloc, &wk->renderer.wk_instance, &wk->renderer.wk_device,
+        wk_output, &wk->surfaces[output_idx]);
     if(wkres != WK_OK) goto err;
     return WK_OK;
 err:
-    wk_renderer_output_cleanup(&wk->renderer, wk_output);
+    wk_surface_cleanup(&wk->renderer.wk_instance, &wk->renderer.wk_device, &wk->surfaces[output_idx]);
     wk_output_disable(wk_output);
     return wkres;
 }
@@ -186,7 +192,9 @@ err:
 WkResult
 wallkan_disable_output(Wallkan *wk, WallkanOutput *wk_output)
 {
-    wk_renderer_output_cleanup(&wk->renderer, wk_output);
+    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    wk_surface_cleanup(&wk->renderer.wk_instance, &wk->renderer.wk_device,
+        &wk->surfaces[output_idx]);
     WK_TRY(
         wk_output_disable(wk_output)
     );
@@ -196,9 +204,39 @@ wallkan_disable_output(Wallkan *wk, WallkanOutput *wk_output)
 WkResult
 wallkan_remove_output(Wallkan *wk, WallkanOutput *wk_output)
 {
-    wk_renderer_output_cleanup(&wk->renderer, wk_output);
+    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
+    wk_surface_cleanup(&wk->renderer.wk_instance, &wk->renderer.wk_device,
+        &wk->surfaces[output_idx]);
     wk_output_cleanup(wk_output);
     return WK_OK;
+}
+
+void
+wallkan_cleanup_outputs(Wallkan *wk)
+{
+    uint8_t active_mask = wk->window.output_is_active_mask;
+    while(active_mask){
+        uint32_t output_idx = bit_pop_lsb(&active_mask);
+        wallkan_remove_output(wk, &wk->window.wk_outputs[output_idx]);
+    }
+}
+
+WkResult
+wallkan_load_wksp(Wallkan *wk, const char *path)
+{
+    WKSPContainer wksp = {0};
+    WkResult wkres = WK_OK;
+    wkres = wksp_load(&wk->arena_alloc, &wk->renderer.wk_device, &wk->wksp_parser, path, &wksp);
+    if(wkres != WK_OK) goto err;
+
+    wkres = wk_scene_init(&wk->arena_alloc, &wk->renderer.wk_device, &wksp,
+        &wk->renderer.wk_scenes[wk->renderer.scene_count], &wk->renderer.scene_count);
+    if(wkres != WK_OK) goto err;
+
+    return wkres;
+err:
+    wksp_destroy(&wk->renderer.wk_device, &wksp);
+    return wkres;
 }
 
 int
@@ -223,26 +261,17 @@ main(void)
     wkres = bind_all_events(&wk);
     if(wkres != WK_OK) goto cleanup;
 
-    wkres = wk_instance_init(&wk.arena_alloc, &wk.renderer.wk_instance);
-    if(wkres != WK_OK) goto cleanup;
-
     wkres = wk_window_init(&wk.window, &wk.event_handler);
     if(wkres != WK_OK) goto cleanup;
-
-    // Window initialization generates events related to output
-    // It must be consumed before renderer initialization
-    wkres = wk_ev_handler_dispatch(&wk.event_handler);
-    if(wkres != WK_OK) goto cleanup;
-
 
     wkres = wk_renderer_init(&wk.arena_alloc, &wk.renderer, &wk.window);
     if(wkres != WK_OK) goto cleanup;
 
+    wksp_parser_init(&wk.wksp_parser, &wk.arena_alloc);
     // Polling
     struct pollfd poll_fds[POLL_COUNT] = {0};
     setup_polling(&wk, poll_fds);
 
-    wk_window_request_all_frames(&wk.window);
     while(wk.running){
         arena_alloc_reset(&wk.arena_alloc);
 
@@ -256,7 +285,6 @@ main(void)
                 "Failure while polling errno: %d msg: %s", errno, strerror(errno));
             goto cleanup;
         }
-
         wkres = check_for_wayland_events(&wk, poll_fds);
         if(wkres != WK_OK) goto cleanup;
 
@@ -268,13 +296,26 @@ main(void)
         if (wk.window.output_frame_ready_mask == 0 || wk.window.output_is_active_mask == 0)
             continue;
 
-        // Request the next frame
-        wkres = wk_renderer_render(&wk.renderer, &wk.window);
-        if (wkres != WK_OK) goto cleanup;
+        uint8_t output_active_mask = wk.window.output_is_active_mask;
+        // Iterate maximum until all bits are zero
+        while (output_active_mask != 0) {
+            uint32_t output_idx = bit_pop_lsb(&output_active_mask);
+            WallkanOutput *wk_output = &wk.window.wk_outputs[output_idx];
+            if(!(wk.window.output_frame_ready_mask & (1 << output_idx))){
+                continue;
+            }
+            LOG("Vsync frame for %s. Timestamp: %u", wk_output->name, wk_output->frame_time_ms);
+
+            wkres = wk_renderer_render(&wk.renderer);
+            if (wkres != WK_OK) goto cleanup;
+
+            wk_output_request_frame(wk_output);
+        }
     }
 cleanup:
     arena_alloc_free(&wk.arena_alloc);
-    wk_renderer_cleanup(&wk.renderer, &wk.window);
+    wallkan_cleanup_outputs(&wk);
+    wk_renderer_cleanup(&wk.renderer);
     wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);
     wk_ev_handler_cleanup(&wk.event_handler);

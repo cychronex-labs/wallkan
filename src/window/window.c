@@ -214,10 +214,7 @@ setup_registry(WallkanWindow *wk_win)
         return WK_ERR(WK_ERR_WL_REGISTRY_ROUNDTRIP_FAILURE,
             "Wayland display roundtrip 1 has failed during listening events!");
     };
-    if(wl_display_roundtrip(wk_win->display) == -1){
-        return WK_ERR(WK_ERR_WL_REGISTRY_ROUNDTRIP_FAILURE,
-            "Wayland display roundtrip 2 has failed during listening events!");
-    };
+
     return WK_OK;
 }
 
@@ -275,17 +272,6 @@ err:
 }
 
 void
-wk_window_request_all_frames(WallkanWindow *wk_window)
-{
-    uint8_t active_mask = wk_window->output_is_active_mask;
-    // Iterate maximum until all bits are zero
-    while (active_mask != 0) {
-        uint32_t output_idx = bit_pop_lsb(&active_mask);
-        wk_output_request_frame(&wk_window->wk_outputs[output_idx]);
-    }
-}
-
-void
 wk_window_cleanup(WallkanWindow *wk_win)
 {
     if (wk_win->seat_caps.mouse) {
@@ -299,6 +285,7 @@ wk_window_cleanup(WallkanWindow *wk_win)
         wk_win->wl_seat = NULL;
     }
     for (uint32_t i=0; i<MAX_OUTPUTS; i++) {
+
         wk_output_cleanup(&wk_win->wk_outputs[i]);
     }
     if(wk_win->layer_shell){

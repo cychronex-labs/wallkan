@@ -1,12 +1,12 @@
 #include "arena_alloc.h"
-#include "common.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/instance.h"
-#include "renderer/swapchain.h"
+#include "renderer/scene/scene.h"
 #include "window/outputs.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <vulkan/vulkan_core.h>
 #include "renderer/renderer.h"
 
@@ -15,74 +15,35 @@ wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWin
 {
     (void)alloc;
     (void)wk_renderer;
-    if(wk_window->output_is_active_mask==0){
-        return WK_ERR(WK_ERR_NO_ACTIVE_MONITORS_FOUND,
-            "No active monitors found");
-    }
 
-    return WK_OK;
-}
+    wk_renderer->wk_scenes = malloc(sizeof(WallkanScene) * MAX_OUTPUTS);
+    if(!wk_renderer->wk_scenes) return WK_ERR(WK_ERR_ALLOCATION_FAILURE, "Allocation failure!");
 
-WkResult
-wk_renderer_output_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer,
-    WallkanOutput *wk_output)
-{
-    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
-    WK_TRY(
-        wk_instance_init_surface(&wk_renderer->wk_instance, wk_output->wk_window,
-            wk_output, &wk_renderer->vk_surfaces[output_idx])
-    );
-    // wk_device_init only continues only if its uninitialized.
+    WK_TRY(wk_instance_init(alloc, &wk_renderer->wk_instance));
     WK_TRY(wk_device_init(alloc, &wk_renderer->wk_device, &wk_renderer->wk_instance,
-        wk_renderer->vk_surfaces[output_idx]));
+        wk_window->display));
 
-    WK_TRY(
-        wk_swapchain_init(alloc, &wk_renderer->wk_swapchain[output_idx],
-            &wk_renderer->wk_device, wk_output, wk_renderer->vk_surfaces[output_idx])
-    );
     return WK_OK;
 }
 
-void
-wk_renderer_output_cleanup(WallkanRenderer *wk_renderer, WallkanOutput *wk_output)
-{
-    ptrdiff_t output_idx = wk_output - wk_output->wk_window->wk_outputs;
-    VkSurfaceKHR vk_surface = wk_renderer->vk_surfaces[output_idx];
-    wk_swapchain_cleanup(&wk_renderer->wk_swapchain[output_idx], &wk_renderer->wk_device);
-    if(vk_surface){
-        vkDestroySurfaceKHR(wk_renderer->wk_instance.vk_instance, vk_surface, NULL);
-        wk_renderer->vk_surfaces[output_idx] = VK_NULL_HANDLE;
-    }
-}
-
 WkResult
-wk_renderer_render(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
+wk_renderer_render(WallkanRenderer *wk_renderer)
 {
     (void)wk_renderer;
-    uint8_t active_mask = wk_window->output_is_active_mask;
-    // Iterate maximum until all bits are zero
-    while (active_mask != 0) {
-        uint32_t output_idx = bit_pop_lsb(&active_mask);
-        WallkanOutput *wk_output = &wk_window->wk_outputs[output_idx];
-        if(!(wk_window->output_frame_ready_mask & (1 << output_idx))){
-            continue;
-        }
-        LOG("Vsync frame. Timestamp: %u", wk_output->frame_time_ms);
-        // Switch this output bit into zero
-        wk_window->output_frame_ready_mask &= ~(1 << output_idx);
-        wk_output_request_frame(wk_output);
-    }
     return WK_OK;
 }
 
 void
-wk_renderer_cleanup(WallkanRenderer *wk_renderer, WallkanWindow *wk_window)
+wk_renderer_cleanup(WallkanRenderer *wk_renderer)
 {
-    uint8_t active_mask = wk_window->output_is_active_mask;
-    // Iterate maximum until all bits are zero
-    while (active_mask != 0) {
-        uint32_t output_idx = bit_pop_lsb(&active_mask);
-        wk_renderer_output_cleanup(wk_renderer, &wk_window->wk_outputs[output_idx]);
+    if(wk_renderer->wk_scenes){
+        uint32_t scene_count = wk_renderer->scene_count;
+        for (uint32_t i=0; i<scene_count; i++) {
+            wk_scene_cleanup(&wk_renderer->wk_device, &wk_renderer->wk_scenes[i],
+                &wk_renderer->scene_count);
+        }
+        free(wk_renderer->wk_scenes);
+        wk_renderer->wk_scenes = NULL;
     }
     wk_device_cleanup(&wk_renderer->wk_device);
     wk_instance_cleanup(&wk_renderer->wk_instance);

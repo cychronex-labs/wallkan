@@ -36,7 +36,7 @@ typedef struct WallkanDevice{
 
 WkResult
 wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance *wk_instance,
-    VkSurfaceKHR first_vk_surface);
+    struct wl_display *display);
 
 void
 wk_device_cleanup(WallkanDevice *wk_device);

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
+#include <wayland-client-core.h>
 
 static WkResult
 scan_physical_devices(ArenaAllocator *alloc, const WallkanInstance *wk_instance,
@@ -79,7 +80,7 @@ check_device_features(const VkPhysicalDevice physical_device)
     }
     if(features12.scalarBlockLayout != VK_TRUE){
         supported = false;
-        LOG("check_device_features: - scalarBlockLayout not supported!");
+        LOG("check_device_features: - ScalarBlockLayout not supported!");
     }
     LOG("check_device_features: Verdict: %s!", supported ? "SUPPORTED" : "UNSUPPORTED");
     return supported;
@@ -140,7 +141,7 @@ check_device_extensions(WallkanDevice *device,
 
 static WkResult
 get_device_queue_data(ArenaAllocator *alloc, WallkanDevice *wk_device,
-    VkSurfaceKHR vk_surface)
+    struct wl_display *display)
 {
     WkResult wkres = WK_OK;
     // Zero initialization sets everything 0 which technically could be a valid index
@@ -186,13 +187,9 @@ get_device_queue_data(ArenaAllocator *alloc, WallkanDevice *wk_device,
             // Compute+Graphics
             LOG("get_device_queue_data: Queue family index: %d is graphics!", i);
 
-            VkBool32 presentation_supported = false;
-            wkres = EXPECT_VK(
-                vkGetPhysicalDeviceSurfaceSupportKHR(wk_device->physical_device, i,
-                    vk_surface, &presentation_supported),
-                WK_ERR_VK_DEVICE_SUPPORT_SURFACE_PRESENTATION_FAILURE,
-                "Failure on checking if 'maybe suitable' queue family supports presentation..."
-            );
+            VkBool32 presentation_supported;
+            presentation_supported = vkGetPhysicalDeviceWaylandPresentationSupportKHR(
+                wk_device->physical_device, i, display);
 
             if(presentation_supported){
                 LOG("get_device_queue_data: Queue %d supports presentation!", i);
@@ -224,7 +221,7 @@ err:
 
 static WkResult
 choose_device(ArenaAllocator *alloc, const VkPhysicalDevice *devices, uint32_t total_devices,
-    WallkanDevice *out_wk_device, VkSurfaceKHR first_vk_surface)
+    WallkanDevice *out_wk_device, struct wl_display *display)
 {
     uint32_t total_extensions = 0;
     bool found_supported = false;
@@ -249,7 +246,7 @@ choose_device(ArenaAllocator *alloc, const VkPhysicalDevice *devices, uint32_t t
 
         if(!supported) continue;
 
-        WK_TRY(get_device_queue_data(alloc, &device, first_vk_surface));
+        WK_TRY(get_device_queue_data(alloc, &device, display));
         if (device.graphics_queue_family_idx == UINT32_MAX) {
             supported = false;
             continue;
@@ -386,7 +383,7 @@ create_logical_device(WallkanDevice *wk_device)
 
 WkResult
 wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance *wk_instance,
-    VkSurfaceKHR first_vk_surface)
+    struct wl_display *display)
 {
     if(wk_device->device != VK_NULL_HANDLE) return WK_OK;
     WkResult wkres;
@@ -396,7 +393,7 @@ wk_device_init(ArenaAllocator *alloc, WallkanDevice *wk_device, WallkanInstance 
     wkres = scan_physical_devices(alloc, wk_instance, &devices, &total_devices);
     if(wkres != WK_OK) goto err;
 
-    wkres = choose_device(alloc, devices, total_devices, wk_device, first_vk_surface);
+    wkres = choose_device(alloc, devices, total_devices, wk_device, display);
     if(wkres != WK_OK) goto err;
 
     wkres = create_logical_device(wk_device);

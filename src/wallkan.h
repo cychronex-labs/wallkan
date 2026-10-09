@@ -5,14 +5,18 @@
 #include "events.h"
 #include "ipc/server.h"
 #include "renderer/renderer.h"
+#include "surface/surface.h"
 #include "window/window.h"
+#include "wksp/parser.h"
 
 typedef struct Wallkan {
     ArenaAllocator      arena_alloc;
     WallkanWindow       window;
+    WallkanSurface      surfaces[MAX_OUTPUTS];
     WallkanRenderer     renderer;
     WallkanEventHandler event_handler;
     WallkanIpc          ipc;
+    WKSPParser          wksp_parser;
     bool                running;
 } Wallkan;
 
@@ -27,5 +31,8 @@ wallkan_disable_output(Wallkan *wk, WallkanOutput *wk_output);
 
 WkResult
 wallkan_remove_output(Wallkan *wk, WallkanOutput *wk_output);
+
+WkResult
+wallkan_load_wksp(Wallkan *wk, const char *path);
 
 #endif

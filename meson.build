@@ -17,8 +17,6 @@ add_project_arguments(
 
 inc = include_directories('src')
 
-
-
 wayland_client = dependency('wayland-client')
 
 wayland_scanner = find_program('wayland-scanner', native: true, required: true)
@@ -74,17 +72,22 @@ sources = files(
   'src/events.c',
   'src/window/window.c',
   'src/window/outputs.c',
-  'src/ipc/yyjson_alc.c',
+  'src/yyjson_alc.c',
   'src/ipc/server.c',
   'src/ipc/cmd/handle.c',
   'src/ipc/cmd/quit.c',
   'src/ipc/cmd/output.c',
+  'src/ipc/cmd/scene.c',
   'src/renderer/instance.c',
   'src/renderer/device.c',
   'src/renderer/renderer.c',
-  'src/renderer/swapchain.c',
+  'src/renderer/scene/scene.c',
+  'src/renderer/scene/descriptor.c',
+  'src/renderer/scene/pipeline.c',
+  'src/surface/surface.c',
+  'src/surface/swapchain.c',
+  'src/wksp/parser.c'
 )
-
 
 exec = executable(
   'wallkan',

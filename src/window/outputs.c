@@ -6,7 +6,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 #include <wayland-client-protocol.h>
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -124,11 +126,22 @@ cb_on_layer_configure(void *data,
                       uint32_t height)
 {
     WallkanOutput *wk_output = (WallkanOutput *)data;
+    LOG("(CB)on_layer_configure: Layer configure callback for %s (%dx%d) -> (%dx%d)",
+        wk_output->name, wk_output->width, wk_output->height, width, height);
 
-    // 1. Detect if this monitor's resolution actually changed
+    // Only mark the output active and start render loop after successful
+    // layer configuration
+    if(!wk_output->layer_configured){
+        ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
+        wk_output->wk_window->output_is_active_mask |= (1 << wk_output_idx);
+        wk_output->wk_window->output_frame_ready_mask |= (1 << wk_output_idx);
+        wk_output->layer_configured = true;
+    }
+
     if (wk_output->width != width || wk_output->height != height) {
-
         // If width/height were already non-zero, this is a runtime resize!
+        // An event on initial time will be dispatched inside while loop once.
+        // Which creates an unnecessary event at every startup
         if (wk_output->width != 0 && wk_output->height != 0) {
             WkEvent event = {
                 .type = WK_EVENT_RESIZE,
@@ -145,7 +158,6 @@ cb_on_layer_configure(void *data,
         wk_output->height = height;
     }
 
-    // 2. Always acknowledge configure
     zwlr_layer_surface_v1_ack_configure(zwlr_layer_surface_v1, serial);
     LOG("Output %u: Acknowledged layer configure @ %ux%u",
         wk_output->registry_id, width, height);
@@ -261,12 +273,6 @@ setup_zwlr_layer_surface(WallkanWindow *wk_window, WallkanOutput *wk_output)
     zwlr_layer_surface_v1_set_size(wk_output->layer_surface, 0, 0);
     zwlr_layer_surface_v1_set_exclusive_zone(wk_output->layer_surface, -1);
     wl_surface_commit(wk_output->surface);
-
-    if (wl_display_roundtrip(wk_window->display) == -1){
-        return WK_ERR(WK_ERR_WL_DISPLAY_ROUNDTRIP_FAILURE,
-            "Wayland display roundtrip has failed during layer surface initialization event for monitor %s!",
-            wk_output->name);
-    }
     LOG("setup_zwlr_layer_surface: Finished setting up zwlr layer surface!");
     return WK_OK;
 }
@@ -286,7 +292,6 @@ wk_output_enable(WallkanOutput *wk_output)
     if(wkres != WK_OK) goto err;
     wkres = setup_zwlr_layer_surface(wk_output->wk_window, wk_output);
     if(wkres != WK_OK) goto err;
-    wk_output->wk_window->output_is_active_mask |= (1 << wk_output_idx);
 
     return WK_OK;
 err:
@@ -296,6 +301,9 @@ err:
 void
 wk_output_request_frame(WallkanOutput *wk_output)
 {
+    ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
+
+    wk_output->wk_window->output_frame_ready_mask &= ~(1 << wk_output_idx);
     if (wk_output->frame_cb != NULL) return;
     wk_output->frame_cb = wl_surface_frame(wk_output->surface);
     wl_callback_add_listener(wk_output->frame_cb, &frame_listener, wk_output);
@@ -356,5 +364,7 @@ wk_output_cleanup(WallkanOutput *wk_output)
         wl_output_release(wk_output->wl_output);
         wk_output->wl_output = NULL;
     }
-    *wk_output = (WallkanOutput){0};
+    *wk_output = (WallkanOutput){
+        .wk_window = wk_output->wk_window
+    };
 }

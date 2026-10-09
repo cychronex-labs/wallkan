@@ -39,8 +39,6 @@ WkResult wk_window_init(WallkanWindow *wk_win, WallkanEventHandler *wk_ev_handle
 
 WkResult wk_window_wl_prepare_read(WallkanWindow *wk_win);
 
-void wk_window_request_all_frames(WallkanWindow *wk_window);
-
 void wk_window_cleanup(WallkanWindow *wk_win);
 
 #endif

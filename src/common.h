@@ -2,6 +2,9 @@
 #define WALLKAN_COMMON_H
 #include <stdint.h>
 #include <stdio.h>
+
+#define MAX_FRAMES_IN_FLIGHT 2
+
 #ifndef COLOR_RESET
     #define COLOR_ERR "\x1b[38;5;196m"
     #define COLOR_WARN "\x1b[38;5;184m"

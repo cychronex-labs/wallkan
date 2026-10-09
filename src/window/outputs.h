@@ -27,6 +27,7 @@ typedef struct WallkanOutput {
     struct wl_callback *frame_cb;
     uint32_t frame_time_ms;
     bool got_details;
+    bool layer_configured;
 } WallkanOutput;
 
 typedef struct WallkanWindow WallkanWindow;
@@ -34,10 +35,15 @@ typedef struct WallkanWindow WallkanWindow;
 bool wk_output_is_active(WallkanOutput *wk_output);
 
 WkResult wk_output_add(WallkanWindow *win, uint32_t name, uint32_t version);
+
 WkResult wk_output_enable(WallkanOutput *wk_output);
+
 WkResult wk_output_disable(WallkanOutput *wk_output);
+
 void wk_output_request_frame(WallkanOutput *wk_output);
+
 WkResult wk_output_remove(WallkanWindow *wk_win, WallkanOutput *wk_output);
+
 void wk_output_cleanup(WallkanOutput *wk_output);
 
 #endif
