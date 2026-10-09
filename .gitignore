@@ -1,3 +1,5 @@
-build
+/build/
 .cache
 build-asan/
+wkctl/shader/
+wkctl/wkctl
