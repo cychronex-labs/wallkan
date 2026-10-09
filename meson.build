@@ -74,15 +74,17 @@ sources = files(
   'src/events.c',
   'src/window/window.c',
   'src/window/outputs.c',
-  'src/ipc.c',
-  'src/ipc_cmd/ipc_cmd.c',
-  'src/ipc_cmd/quit.c',
-  'src/ipc_cmd/output.c',
+  'src/ipc/yyjson_alc.c',
+  'src/ipc/server.c',
+  'src/ipc/cmd/handle.c',
+  'src/ipc/cmd/quit.c',
+  'src/ipc/cmd/output.c',
   'src/renderer/instance.c',
   'src/renderer/device.c',
   'src/renderer/renderer.c',
   'src/renderer/swapchain.c',
 )
+
 
 exec = executable(
   'wallkan',
