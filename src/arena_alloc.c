@@ -1,3 +1,4 @@
+#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stdalign.h>
@@ -31,6 +32,14 @@ arena_alloc(ArenaAllocator *allocator, uint32_t size)
 
     allocator->used+=aligned_size;
     return (void*)next_addr;
+}
+
+void *
+arena_calloc(ArenaAllocator *allocator, uint32_t size)
+{
+    void *ptr = arena_alloc(allocator, size);
+    if (ptr) memset(ptr, 0, size);
+    return ptr;
 }
 
 void
