@@ -29,8 +29,11 @@ wallkan_enable_output(Wallkan *wk, WallkanOutput *wk_output);
 WkResult
 wallkan_disable_output(Wallkan *wk, WallkanOutput *wk_output);
 
-WkResult
+void
 wallkan_remove_output(Wallkan *wk, WallkanOutput *wk_output);
+
+void
+wallkan_remove_outputs(Wallkan *wk);
 
 WkResult
 wallkan_load_wksp(Wallkan *wk, const char *path);

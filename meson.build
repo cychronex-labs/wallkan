@@ -89,7 +89,8 @@ sources = files(
   'src/renderer/scene/buffer.c',
   'src/surface/surface.c',
   'src/surface/swapchain.c',
-  'src/wksp/parser.c'
+  'src/wksp/parser.c',
+  'src/core/wallkan_output.c',
 )
 
 exec = executable(
