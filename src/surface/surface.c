@@ -2,13 +2,16 @@
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/instance.h"
+#include "renderer/scene/scene.h"
 #include "window/outputs.h"
+#include <stdint.h>
 #include <surface/surface.h>
 
 WkResult
 wk_surface_init(ArenaAllocator *alloc, WallkanInstance *wk_instance, WallkanDevice *wk_device,
     WallkanOutput *wk_output, WallkanSurface *wk_surface)
 {
+    wk_surface->scene_idx = UINT32_MAX;
     wk_surface->wk_output = wk_output;
     WK_TRY(
         wk_instance_init_surface(wk_instance, wk_output->wk_window,
@@ -21,6 +24,12 @@ wk_surface_init(ArenaAllocator *alloc, WallkanInstance *wk_instance, WallkanDevi
     return WK_OK;
 }
 
+WkResult
+wk_surface_update(WallkanScene *wk_scene)
+{
+    (void)wk_scene;
+    return WK_OK;
+}
 
 void
 wk_surface_cleanup(WallkanInstance *wk_instance, WallkanDevice *wk_device,
