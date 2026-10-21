@@ -3,26 +3,20 @@
 #include <stdlib.h>
 #include <poll.h>
 #include <string.h>
+#include <unistd.h>
+#include <vulkan/vulkan_core.h>
 #include <wayland-client-core.h>
-#include "wallkan.h"
 #include "common.h"
 #include "err.h"
 #include "events.h"
 #include "ipc/server.h"
 #include "renderer/renderer.h"
-#include "renderer/scene/scene.h"
 #include "surface/surface.h"
 #include "window/outputs.h"
 #include "window/window.h"
 #include "arena_alloc.h"
 #include "wksp/parser.h"
-
-enum {
-    POLL_WAYLAND,
-    POLL_IPC_SERVER,
-    POLL_IPC_CLIENT_START,
-    POLL_COUNT = POLL_IPC_CLIENT_START + MAX_IPC_CLIENTS,
-};
+#include "wallkan.h"
 
 // Callbacks
 static WkResult
@@ -49,18 +43,18 @@ cb_on_output_unplug(const WkEvent *event, void *data)
 }
 
 static void
-setup_polling(Wallkan *wk, struct pollfd *poll_fds)
+setup_polling(Wallkan *wk)
 {
-    poll_fds[POLL_WAYLAND] = (struct pollfd){
+    wk->poll_fds[POLL_WAYLAND] = (struct pollfd){
         .fd = wl_display_get_fd(wk->window.display),
         .events = POLLIN
     };
-    poll_fds[POLL_IPC_SERVER] = (struct pollfd){
+    wk->poll_fds[POLL_IPC_SERVER] = (struct pollfd){
         .fd = wk->ipc.server_fd,
         .events = POLLIN
     };
     for (uint32_t i=POLL_IPC_CLIENT_START; i<POLL_COUNT; i++) {
-        poll_fds[i] = (struct pollfd){
+        wk->poll_fds[i] = (struct pollfd){
             .fd = -1,
             .events = POLLIN
         };
@@ -68,11 +62,10 @@ setup_polling(Wallkan *wk, struct pollfd *poll_fds)
 
 }
 
-
 static WkResult
-check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
+check_for_wayland_events(Wallkan *wk)
 {
-    if (poll_fds[POLL_WAYLAND].revents & (POLLHUP | POLLERR)) {
+    if (wk->poll_fds[POLL_WAYLAND].revents & (POLLHUP | POLLERR)) {
         LOG("Wayland compositor disconnected or crashed.");
         wl_display_cancel_read(wk->window.display);
         // Does not need any data. parameters are to satisfy the event handler
@@ -80,7 +73,7 @@ check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
         return WK_ERR(WK_ERR_WL_COMPOSITOR_DISCONNECTED,
             "Wayland disconnected while polling for events!");
     }
-    if(poll_fds[POLL_WAYLAND].revents & POLLIN){
+    if(wk->poll_fds[POLL_WAYLAND].revents & POLLIN){
         if(wl_display_read_events(wk->window.display) < 0){
             if(errno != EAGAIN){
                 return WK_ERR(WK_ERR_WL_COMPOSITOR_DISCONNECTED,
@@ -95,13 +88,13 @@ check_for_wayland_events(Wallkan *wk, struct pollfd *poll_fds)
 }
 
 static void
-check_for_ipc_events(ArenaAllocator *alloc, Wallkan *wk, struct pollfd *poll_fds)
+check_for_ipc_events(ArenaAllocator *alloc, Wallkan *wk)
 {
-    if (poll_fds[POLL_IPC_SERVER].revents & POLLIN) {
+    if (wk->poll_fds[POLL_IPC_SERVER].revents & POLLIN) {
         uint32_t client_idx = UINT32_MAX;
         WkResult wkres = wk_ipc_accept_connection(wk, &client_idx);
         if(client_idx != UINT32_MAX){
-            poll_fds[POLL_IPC_CLIENT_START+client_idx] = (struct pollfd){
+            wk->poll_fds[POLL_IPC_CLIENT_START+client_idx] = (struct pollfd){
                 .fd = wk->ipc.client_fd[client_idx],
                 .events = POLLIN
             };
@@ -113,26 +106,46 @@ check_for_ipc_events(ArenaAllocator *alloc, Wallkan *wk, struct pollfd *poll_fds
     while(active_mask != 0){
         uint32_t client_idx = bit_pop_lsb(&active_mask);
         uint32_t poll_idx = POLL_IPC_CLIENT_START+client_idx;
-        if (poll_fds[poll_idx].revents & POLLIN) {
+        if (wk->poll_fds[poll_idx].revents & POLLIN) {
             WkResult wkres = wk_ipc_read_client(alloc, wk, client_idx);
             if(wkres != WK_OK) WARN("check_for_ipc_events: Client %d read error!", client_idx);
         }
-        // In case of client disconnection if we did not update poll_fds but poll()
+        // In case of client disconnection if we did not update wk->poll_fds but poll()
         // it will result in POLLNVAL which leads to poll to return immediately
         // causing single core usage to spike to 100%
         if(wk->ipc.client_fd[client_idx] == -1){
-            poll_fds[poll_idx] = (struct pollfd){
+            wk->poll_fds[poll_idx] = (struct pollfd){
                 .fd = -1
             };
         }
-        else if (poll_fds[poll_idx].revents & (POLLHUP | POLLERR)) {
+        else if (wk->poll_fds[poll_idx].revents & (POLLHUP | POLLERR)) {
             wk_ipc_disconnect_client(&wk->ipc, client_idx);
-            poll_fds[poll_idx] = (struct pollfd){
+            wk->poll_fds[poll_idx] = (struct pollfd){
                 .fd = -1
             };
         }
 
     }
+}
+
+static WkResult
+get_scenes_to_render(Wallkan *wk, uint64_t *out_scenes_to_render)
+{
+    uint64_t active_mask = wk->renderer.active_scenes;
+    while(active_mask != 0){
+        uint32_t scene_idx = bit_pop_lsb(&active_mask);
+        if (wk->poll_fds[POLL_SCENE_START+scene_idx].revents & POLLIN) {
+            (*out_scenes_to_render) |= (1ULL << scene_idx);
+            uint64_t rang;
+            ssize_t n = read(wk->poll_fds[POLL_SCENE_START+scene_idx].fd, &rang, sizeof(rang));
+            if(n < 0){
+                if(errno != EINTR && errno != EAGAIN){
+                    return WK_ERR(WK_ERR_TIMERFD_READ_FAILURE, "Failed to read timerfd: %d", POLL_SCENE_START+scene_idx);
+                }
+            }
+        }
+    }
+    return WK_OK;
 }
 
 static WkResult
@@ -172,24 +185,6 @@ wallkan_stop(Wallkan *wk)
     return WK_OK;
 }
 
-WkResult
-wallkan_load_wksp(Wallkan *wk, const char *path)
-{
-    WKSPContainer wksp = {0};
-    WkResult wkres = WK_OK;
-    wkres = wksp_load(&wk->arena_alloc, &wk->renderer.wk_device, &wk->wksp_parser, path, &wksp);
-    if(wkres != WK_OK) goto err;
-
-    wkres = wk_scene_init(&wk->arena_alloc, &wk->renderer.wk_device, &wksp,
-        &wk->renderer.wk_scenes[wk->renderer.scene_count], &wk->renderer.scene_count);
-    if(wkres != WK_OK) goto err;
-
-    return wkres;
-err:
-    wksp_destroy(&wk->renderer.wk_device, &wksp);
-    return wkres;
-}
-
 int
 main(void)
 {
@@ -219,9 +214,9 @@ main(void)
     if(wkres != WK_OK) goto cleanup;
 
     wksp_parser_init(&wk.wksp_parser, &wk.arena_alloc);
+
     // Polling
-    struct pollfd poll_fds[POLL_COUNT] = {0};
-    setup_polling(&wk, poll_fds);
+    setup_polling(&wk);
 
     while(wk.running){
         arena_alloc_reset(&wk.arena_alloc);
@@ -229,46 +224,56 @@ main(void)
         wkres = wk_window_wl_prepare_read(&wk.window);
         if(wkres != WK_OK) goto cleanup;
 
-        if(poll(poll_fds, POLL_COUNT, -1) < 0){
+        if(poll(wk.poll_fds, POLL_COUNT, -1) < 0){
             wl_display_cancel_read(wk.window.display);
             if (errno == EINTR) continue;
             wkres = WK_ERR(WK_ERR_POLL_FAILURE,
                 "Failure while polling errno: %d msg: %s", errno, strerror(errno));
             goto cleanup;
         }
-        wkres = check_for_wayland_events(&wk, poll_fds);
+        wkres = check_for_wayland_events(&wk);
         if(wkres != WK_OK) goto cleanup;
 
-        check_for_ipc_events(&wk.arena_alloc, &wk, poll_fds);
+        check_for_ipc_events(&wk.arena_alloc, &wk);
 
         wkres = wk_ev_handler_dispatch(&wk.event_handler);
         if(wkres != WK_OK) goto cleanup;
 
+        uint64_t render_scenes = 0;
+        wkres = get_scenes_to_render(&wk, &render_scenes);
+        if (wkres != WK_OK) goto cleanup;
+
+        if (render_scenes == 0) {
+            continue;
+        }
+
+        wkres = wk_renderer_render(&wk.renderer, render_scenes);
+        if (wkres != WK_OK) goto cleanup;
+
         if (wk.window.output_frame_ready_mask == 0 || wk.window.output_is_active_mask == 0)
             continue;
 
-        uint8_t output_active_mask = wk.window.output_is_active_mask;
+        uint8_t output_frame_ready_mask = wk.window.output_frame_ready_mask;
         // Iterate maximum until all bits are zero
-        while (output_active_mask != 0) {
-            uint32_t output_idx = bit_pop_lsb(&output_active_mask);
+        while (output_frame_ready_mask != 0) {
+            uint32_t output_idx = bit_pop_lsb(&output_frame_ready_mask);
+            WallkanSurface *wk_surface = &wk.surfaces[output_idx];
             WallkanOutput *wk_output = &wk.window.wk_outputs[output_idx];
-            if(!(wk.window.output_frame_ready_mask & (1 << output_idx))){
-                continue;
+
+            LOG("Vsync frame for %d.", output_idx);
+            if (wk_surface->scene_idx != UINT32_MAX) {
+                wk_surface_update(&wk.renderer.wk_scenes[wk_surface->scene_idx]);
             }
-            LOG("Vsync frame for %s. Timestamp: %u", wk_output->name, wk_output->frame_time_ms);
-
-            wkres = wk_renderer_render(&wk.renderer);
-            if (wkres != WK_OK) goto cleanup;
-
             wk_output_request_frame(wk_output);
         }
     }
 cleanup:
-    arena_alloc_free(&wk.arena_alloc);
     wallkan_remove_outputs(&wk);
     wk_renderer_cleanup(&wk.renderer);
     wk_window_cleanup(&wk.window);
     wk_ipc_cleanup(&wk.ipc);
     wk_ev_handler_cleanup(&wk.event_handler);
+    arena_alloc_free(&wk.arena_alloc);
+
     return (wkres == WK_OK) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -12,8 +12,10 @@ project(
 add_project_arguments(
 [
 '-D_GNU_SOURCE',
-'-DVK_USE_PLATFORM_WAYLAND_KHR'
+'-DVK_USE_PLATFORM_WAYLAND_KHR',
 ], language: 'c')
+
+cc = meson.get_compiler('c')
 
 inc = include_directories('src')
 
@@ -57,12 +59,14 @@ vulkan_dep = dependency('vulkan')
 
 cwalk_dep = dependency('cwalk', fallback: ['cwalk', 'cwalk_dep'])
 yyjson_dep = dependency('yyjson', fallback: ['yyjson', 'yyjson_dep'])
+libm_dep = cc.find_library('m', required : false)
 
 dependencies = [
   wayland_client,
   cwalk_dep,
   yyjson_dep,
-  vulkan_dep
+  vulkan_dep,
+  libm_dep
 ]
 
 sources = files(
@@ -91,6 +95,7 @@ sources = files(
   'src/surface/swapchain.c',
   'src/wksp/parser.c',
   'src/core/wallkan_output.c',
+  'src/core/wallkan_scene.c'
 )
 
 exec = executable(

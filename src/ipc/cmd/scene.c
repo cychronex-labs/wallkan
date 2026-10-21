@@ -1,8 +1,9 @@
 #include "ipc/cmd/scene.h"
 #include "arena_alloc.h"
 #include "err.h"
-#include "subprojects/yyjson/yyjson.h"
 #include "wallkan.h"
+#include <stdint.h>
+#include <vulkan/vulkan_core.h>
 #include <yyjson.h>
 
 static WkResult
@@ -23,7 +24,11 @@ ipc_cmd_scene_load_wksp(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx,
         err_msg = "'path' field is required and must be absolute!";
         goto err;
     }
-    wkres = wallkan_load_wksp(wk, path);
+
+    uint32_t fps = 60;
+    VkExtent2D extent = {0,0};
+
+    wkres = wallkan_load_scene(wk, path, fps, extent);
     if(wkres != WK_OK){
         strcpy(err_code, "internal_error");
         sprintf(err_msg, "Failed with code: %d", wkres);

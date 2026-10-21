@@ -4,33 +4,60 @@
 #include "renderer/device.h"
 #include "renderer/scene/descriptor.h"
 #include "renderer/scene/pipeline.h"
+#include "renderer/scene/texture.h"
+#include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
+#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
-typedef struct WkSceneRenderTarget {
-    VkImage image;
-    VkImageView image_view;
-    VkExtent2D image_extent;
-} WkSceneRenderTarget;
-
 typedef struct WallkanScene {
+    int timerfd;
     WallkanPipeline pipeline;
-    WkSceneRenderTarget render_target;
+    struct {
+        VkExtent2D extent;
+        VkFormat format;
+        WkTexture texture;
+    } output;
+
+    struct {
+        WkUboRegistry registry;
+
+        WkUBO *frame[MAX_FRAMES_IN_FLIGHT];
+        WkFrameData frame_data;
+
+        WkUBO *pass;
+        WkPassData pass_data;
+
+        WkUBO *shader_params[MAX_FRAMES_IN_FLIGHT];
+
+        uint8_t *parameters_data;
+        uint32_t parameters_count;
+        uint32_t total_parameters_size;
+    } ubo;
+
 } WallkanScene;
 
-WkResult
-wk_scene_init(ArenaAllocator *alloc, const WallkanDevice *wk_device,
-    const WKSPContainer *wksp, WallkanScene *wk_scene, uint32_t *scene_counter);
+typedef struct WkSceneConfig {
+    const WKSPContainer *wksp;
+    struct {
+        VkExtent2D extent;
+        VkFormat format;
+    } texture_config;
+    uint32_t fps;
+} WkSceneConfig;
 
 WkResult
-wk_scene_set_render_target(WallkanScene *wk_scene, const WkSceneRenderTarget *render_target);
+wk_scene_init(ArenaAllocator *alloc, const WallkanDevice *wk_device, WallkanScene *wk_scene,
+    WkSceneConfig *wk_scene_config);
+
+WkResult
+wk_scene_resize(const WallkanDevice *wk_device, WallkanScene *wk_scene, VkExtent2D extent);
 
 WkResult
 wk_scene_render(WallkanScene *wk_scene);
 
 void
-wk_scene_cleanup(const WallkanDevice *wk_device, WallkanScene *wk_scene,
-    uint32_t *scene_counter);
+wk_scene_cleanup(const WallkanDevice *wk_device, WallkanScene *wk_scene);
 
 
 #endif
