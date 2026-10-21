@@ -11,6 +11,12 @@
 #define ERR_INV_WKSP(filename) \
     WK_ERR(WK_ERR_INVALID_WKSP_FILE, "Corrupted WKSP file: %s", (filename))
 
+
+typedef enum WkChannelType {
+    WK_CHANNEL_TYPE_SHADER_PASS,
+    WK_CHANNEL_TYPE_SHADER_ASSET
+} WkChannelType;
+
 typedef struct WKSPParser {
     yyjson_alc json_alc;
 } WKSPParser;
@@ -30,17 +36,39 @@ typedef struct WKSPParameter{
         int32_t int32_components[4];
         uint32_t uint32_components[4];
         float float32_components[4];
-        bool bool_components[4];
+        uint32_t bool_components[4];
     };
 } WKSPParameter;
 
+typedef struct WKSPPassDescSet {
+    uint32_t set_idx;
+    VkDescriptorType type;
+    uint32_t binding_count;
+} WKSPPassDescSet;
+
+
+typedef struct WKSPPassChannel {
+    const char *name;
+    WkChannelType type;
+    VkDescriptorType desc_type;
+    uint32_t producer_idx;
+    // We store just the create info so each scene can own its own samplers
+    // So we prevent ownership clashes between scenes
+    VkSamplerCreateInfo sampler_create_info;
+} WKSPPassChannel;
+
 typedef struct WKSPPass {
-    char name[32];
+    const char *name;
     VkShaderStageFlagBits shader_stage;
     uint32_t channel_count;
     float scale;
     VkFormat selected_img_format;
+    uint32_t descriptor_set_count;
+    WKSPPassChannel *channels;
+    uint32_t iterations;
+    bool self_feedback;
 } WKSPPass;
+
 
 typedef struct WKSPContainer {
     char name[64];
@@ -49,6 +77,7 @@ typedef struct WKSPContainer {
     uint32_t total_passes;
     uint32_t vert_module_idx;
     uint32_t total_parameters;
+    uint32_t total_parameters_size;
     VkShaderModule *shader_modules;
 
     VkDescriptorPoolSize *desc_pool_sizes;

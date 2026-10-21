@@ -8,6 +8,7 @@
 #include <string.h>
 #include <vulkan/vulkan_core.h>
 #include <wksp/parser.h>
+#include <yyjson.h>
 
 void
 wksp_parser_init(WKSPParser *parser, ArenaAllocator *alloc)
@@ -70,7 +71,6 @@ wksp_validate(uint32_t *wksp_data_ptr, size_t file_size, const char *filename, u
     LOG("wksp_parse: Json size: %d bytes", wksp_json_size);
     if(file_size<= wksp_json_size+8) return ERR_INV_WKSP(filename);
 
-
     *json_start_ptr = (char*)wksp_data_ptr + 8;
     uint32_t json_padded_len = (wksp_json_size + 3) &~3;
     *sprv_count_start = (uint32_t*)(*json_start_ptr + json_padded_len);
@@ -95,10 +95,12 @@ resolve_image_format(const WallkanDevice *wk_device, yyjson_val *formats_arr, WK
         VkFormatProperties props;
         vkGetPhysicalDeviceFormatProperties(wk_device->physical_device, format_id, &props);
 
-        VkFormatFeatureFlags required_features =
-            VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-
+        VkFormatFeatureFlags required_features = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        if (pass->shader_stage == VK_SHADER_STAGE_FRAGMENT_BIT) {
+            required_features |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+        }else{
+            required_features |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+        }
         if ((props.optimalTilingFeatures & required_features) == required_features) {
             pass->selected_img_format = format_id;
             break;
@@ -108,6 +110,56 @@ resolve_image_format(const WallkanDevice *wk_device, yyjson_val *formats_arr, WK
         return WK_ERR(WK_ERR_VK_UNSUPPORTED_IMAGE_FORMAT,
             "This shader package required image formats are not unsupported by the selected device!");
     }
+    return WK_OK;
+}
+
+static WkResult
+create_sampler_info_from_json(yyjson_val *sampler, const char *filename,
+    VkSamplerCreateInfo *out_sampler_info)
+{
+    yyjson_val *magfilter = yyjson_obj_get(sampler, "magfilter");
+    if (!yyjson_is_int(magfilter)) return ERR_INV_WKSP(filename);
+    VkFilter mag_filter = yyjson_get_int(magfilter);
+
+    yyjson_val *minfilter = yyjson_obj_get(sampler, "minfilter");
+    if (!yyjson_is_int(minfilter)) return ERR_INV_WKSP(filename);
+    VkFilter min_filter = yyjson_get_int(minfilter);
+
+    yyjson_val *mipmapmode = yyjson_obj_get(sampler, "mipmapmode");
+    if (!yyjson_is_int(mipmapmode)) return ERR_INV_WKSP(filename);
+    VkSamplerMipmapMode mipmap_mode = yyjson_get_int(mipmapmode);
+
+    yyjson_val *addressmodeu = yyjson_obj_get(sampler, "addressmodeu");
+    if (!yyjson_is_int(addressmodeu)) return ERR_INV_WKSP(filename);
+    VkSamplerAddressMode address_mode_u = yyjson_get_int(addressmodeu);
+
+    yyjson_val *addressmodev = yyjson_obj_get(sampler, "addressmodev");
+    if (!yyjson_is_int(addressmodev)) return ERR_INV_WKSP(filename);
+    VkSamplerAddressMode address_mode_v = yyjson_get_int(addressmodev);
+
+    yyjson_val *addressmodew = yyjson_obj_get(sampler, "addressmodew");
+    if (!yyjson_is_int(addressmodew)) return ERR_INV_WKSP(filename);
+    VkSamplerAddressMode address_mode_w = yyjson_get_int(addressmodew);
+
+    yyjson_val *minlod = yyjson_obj_get(sampler, "minlod");
+    if (!yyjson_is_num(minlod)) return ERR_INV_WKSP(filename);
+    float min_lod = (float)yyjson_get_num(minlod);
+
+    yyjson_val *maxlod = yyjson_obj_get(sampler, "maxlod");
+    if (!yyjson_is_num(maxlod)) return ERR_INV_WKSP(filename);
+    float max_lod = (float)yyjson_get_num(maxlod);
+
+    *out_sampler_info = (VkSamplerCreateInfo){
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .minFilter = min_filter,
+        .magFilter = mag_filter,
+        .mipmapMode = mipmap_mode,
+        .addressModeU = address_mode_u,
+        .addressModeV = address_mode_v,
+        .addressModeW = address_mode_w,
+        .minLod = min_lod,
+        .maxLod = max_lod
+    };
     return WK_OK;
 }
 
@@ -138,9 +190,15 @@ wksp_json_load(const WallkanDevice *wk_device, ArenaAllocator *alloc, WKSPParser
 
         const char *pass_name = yyjson_get_str(yyjson_obj_get(pass, "name"));
         if(!pass_name) return ERR_INV_WKSP(filename);
-        uint32_t max_size = sizeof(wksp->passes[i].name);
-        strncpy(wksp->passes[i].name, pass_name, max_size-1);
-        wksp->passes[i].name[max_size-1] = '\0';
+        wksp->passes[i].name = pass_name;
+
+        yyjson_val *_iterations = yyjson_obj_get(pass, "iterations");
+        if(!yyjson_is_uint(_iterations)) return ERR_INV_WKSP(filename);
+        wksp->passes[i].iterations = yyjson_get_uint(_iterations);
+
+        yyjson_val *_self_feedback = yyjson_obj_get(pass, "self_feedback");
+        if(!yyjson_is_bool(_self_feedback)) return ERR_INV_WKSP(filename);
+        wksp->passes[i].self_feedback = yyjson_get_bool(_self_feedback);
 
         yyjson_val *scale = yyjson_obj_get(pass, "scale");
         if(!yyjson_is_num(scale)) return ERR_INV_WKSP(filename);
@@ -153,6 +211,38 @@ wksp_json_load(const WallkanDevice *wk_device, ArenaAllocator *alloc, WKSPParser
         yyjson_val *channels = yyjson_obj_get(pass, "channels");
         if(!yyjson_is_arr(channels)) return ERR_INV_WKSP(filename);
         wksp->passes[i].channel_count = yyjson_arr_size(channels);
+        wksp->passes[i].channels = arena_alloc(alloc,
+
+            sizeof(WKSPPassChannel) * wksp->passes[i].channel_count);
+        for (uint32_t j=0; j<wksp->passes[i].channel_count; j++) {
+            yyjson_val *channel = yyjson_arr_get(channels, j);
+
+            const char *name = yyjson_get_str(yyjson_obj_get(channel, "name"));
+            if(!name) return ERR_INV_WKSP(filename);
+
+            yyjson_val *_type = yyjson_obj_get(channel, "type");
+            if(!yyjson_is_uint(_type)) return ERR_INV_WKSP(filename);
+            uint32_t type = yyjson_get_uint(_type);
+
+            yyjson_val *_producer = yyjson_obj_get(channel, "producer");
+            if(!yyjson_is_uint(_producer)) return ERR_INV_WKSP(filename);
+            uint32_t producer = yyjson_get_uint(_producer);
+
+            yyjson_val *_desc_type = yyjson_obj_get(channel, "desc_type");
+            if(!yyjson_is_uint(_desc_type)) return ERR_INV_WKSP(filename);
+
+            yyjson_val *sampler = yyjson_obj_get(channel, "sampler");
+            if(!sampler) return ERR_INV_WKSP(filename);
+
+            wksp->passes[i].channels[j] = (WKSPPassChannel){
+                .name = name,
+                .type = type,
+                .producer_idx = producer,
+                .desc_type = yyjson_get_uint(_desc_type)
+            };
+            WK_TRY(create_sampler_info_from_json(sampler, filename,
+                &wksp->passes[i].channels[j].sampler_create_info));
+        }
 
         yyjson_val *formats = yyjson_obj_get(pass, "formats");
         WK_TRY(resolve_image_format(wk_device, formats, &wksp->passes[i], filename));
@@ -187,7 +277,6 @@ wksp_json_load(const WallkanDevice *wk_device, ArenaAllocator *alloc, WKSPParser
 
     yyjson_val *_param_count = yyjson_obj_get(root, "param_count");
     uint32_t param_count = (uint32_t)yyjson_get_uint(_param_count);
-    if(param_count == 0) return ERR_INV_WKSP(filename);
     wksp->total_parameters = param_count;
 
     yyjson_val *params = yyjson_obj_get(root, "params");
@@ -224,6 +313,7 @@ wksp_json_load(const WallkanDevice *wk_device, ArenaAllocator *alloc, WKSPParser
         if(!yyjson_is_arr(components)) return ERR_INV_WKSP(filename);
         if (yyjson_arr_size(components) < components_count) return ERR_INV_WKSP(filename);
 
+
         for (uint32_t j = 0; j < components_count; j++) {
             yyjson_val *component = yyjson_arr_get(components, j);
             if(!component) return ERR_INV_WKSP(filename);
@@ -232,28 +322,28 @@ wksp_json_load(const WallkanDevice *wk_device, ArenaAllocator *alloc, WKSPParser
                     if (yyjson_is_num(component)) {
                         wksp->parameters[i].float32_components[j] =
                             (float)yyjson_get_num(component);
-
+                        wksp->total_parameters_size+=4;
                     }else return ERR_INV_WKSP(filename);
                     break;
                 case WKSP_PARAM_TYPE_INT:
                     if (yyjson_is_int(component)) {
                         wksp->parameters[i].int32_components[j] =
                             yyjson_get_int(component);
-
+                        wksp->total_parameters_size+=4;
                     }else return ERR_INV_WKSP(filename);
                     break;
                 case WKSP_PARAM_TYPE_UINT:
                     if (yyjson_is_uint(component)) {
                         wksp->parameters[i].uint32_components[j] =
                             yyjson_get_uint(component);
-
+                        wksp->total_parameters_size+=4;
                     }else return ERR_INV_WKSP(filename);
                     break;
                 case WKSP_PARAM_TYPE_BOOL:
                     if (yyjson_is_bool(component)) {
-                        wksp->parameters[i].bool_components[j] =
-                            yyjson_get_bool(component);
-
+                        uint32_t val = yyjson_get_bool(component) ? 1 : 0;
+                        wksp->parameters[i].bool_components[j] = val;
+                        wksp->total_parameters_size+=4;
                     }else return ERR_INV_WKSP(filename);
                     break;
                 default:
@@ -332,6 +422,9 @@ wksp_load(ArenaAllocator *alloc, const WallkanDevice *wk_device, WKSPParser *par
 void
 wksp_destroy(const WallkanDevice *wk_device, WKSPContainer *wksp)
 {
+    if (!wksp) {
+        return;
+    }
     for (uint32_t i=0; i<wksp->total_passes; i++) {
         if(!wksp->shader_modules[i]) continue;
         vkDestroyShaderModule(wk_device->device, wksp->shader_modules[i], NULL);
