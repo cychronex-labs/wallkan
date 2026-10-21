@@ -31,8 +31,7 @@ calculate_image_count(VkSurfaceCapabilitiesKHR *surface_capabilities, uint32_t *
         *out_image_count = surface_capabilities->minImageCount+1;
         return;
     }
-    *out_image_count = MAX(surface_capabilities->minImageCount,
-        surface_capabilities->minImageCount+1);
+    *out_image_count = surface_capabilities->minImageCount+1;
     *out_image_count = MIN(*out_image_count, surface_capabilities->maxImageCount);
     LOG("calculate_image_count:  - Image count: %u", *out_image_count);
 }
@@ -182,7 +181,7 @@ wk_swapchain_init(ArenaAllocator *alloc, WallkanSwapchain *wk_swapchain, Wallkan
         .imageColorSpace = wk_swapchain->colorspace,
         .imageExtent = wk_swapchain->image_extent,
         .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .preTransform = surface_capabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
