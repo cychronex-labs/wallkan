@@ -49,9 +49,9 @@ func Run(path string) error {
 		"path": path,
 	})
 	if err != nil {
-		internal.Success("Success, ")
-	} else {
 		internal.Error("%s", err.Error())
+	} else {
+		internal.Success("Success")
 	}
 	return err
 }

@@ -79,10 +79,6 @@ func (ipc *WallkanIPC) Response[ResultObj any]() (*ResultObj, error) {
 		return nil, internal.Error("Failed to unmarshal json, err: %s", err.Error())
 	}
 
-	if err := json.Unmarshal(cmd, &resp); err != nil {
-		return nil, err
-	}
-
 	if resp.Status != 0 {
 		return nil, resp.Error
 	}
