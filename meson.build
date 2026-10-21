@@ -84,6 +84,7 @@ sources = files(
   'src/renderer/scene/scene.c',
   'src/renderer/scene/descriptor.c',
   'src/renderer/scene/pipeline.c',
+  'src/renderer/scene/texture.c',
   'src/renderer/scene/ubo.c',
   'src/renderer/scene/buffer.c',
   'src/surface/surface.c',
