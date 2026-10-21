@@ -84,6 +84,8 @@ sources = files(
   'src/renderer/scene/scene.c',
   'src/renderer/scene/descriptor.c',
   'src/renderer/scene/pipeline.c',
+  'src/renderer/scene/ubo.c',
+  'src/renderer/scene/buffer.c',
   'src/surface/surface.c',
   'src/surface/swapchain.c',
   'src/wksp/parser.c'
