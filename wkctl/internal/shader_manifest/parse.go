@@ -264,20 +264,16 @@ func validateAsset(path string) {
 func validateChannelSamplerOptions(pass *ShaderPass, ch_index int) error {
 	channel := &pass.Channels[ch_index]
 	internal.Log("Validate Channel filter mode")
-	if channel.Filter == "" {
-		internal.Log("No Channel filter mode specified, default: linear")
-		channel.Filter = "linear"
-	}
-	if channel.Wrap == "" {
-		internal.Log("No Channel wrap mode specified, default: clamp")
-		channel.Wrap = "clamp"
-	}
-	if _, exists := ChannelFilterMap[channel.Filter]; !exists {
-		return internal.Error("Unknown channel filter option: '%s', available filter modes: %q", channel.Filter, slices.Collect(maps.Keys(ChannelFilterMap)))
-	}
-	internal.Log("Validate Channel wrap mode")
-	if _, exists := ChannelWrapMap[channel.Wrap]; !exists {
-		return internal.Error("Unknown channel wrap option: '%s', available: %q", channel.Wrap, slices.Collect(maps.Keys(ChannelWrapMap)))
+	switch strings.TrimSpace(strings.ToLower(channel.Sampler)) {
+	case "", "linear", "linear_clamp":
+	case "nearest", "nearest_clamp":
+	case "linear_repeat":
+	case "nearest_repeat":
+	case "linear_mirror":
+	case "mipmap":
+	case "mipmap_repeat":
+	default:
+		return internal.Error("unknown sampler preset: %q", channel.Sampler)
 	}
 	return nil
 }
@@ -367,6 +363,7 @@ func validateShaderPassType(manifest *Manifest, index int) error {
 	if pass.Type != "fragment" && pass.Type != "compute" {
 		if pass.Type == "" {
 			internal.Log("No type specified, Default to fragment")
+			pass.Type = "fragment"
 		} else {
 			return internal.Error("Unknown type: '%s', available: [fragment (default), compute]", pass.Type)
 		}
@@ -399,6 +396,12 @@ func validateShaderPass(manifest *Manifest, index int) error {
 		file.Close()
 	} else {
 		return internal.Error("Could not access file: %s", pass_source)
+	}
+	internal.Log("Validate iterations, range: 1+")
+	if pass.Iterations == 0 {
+		pass.Iterations = 1
+	} else if pass.Iterations < 0 {
+		return internal.Error("Iterations < 0.0, Iterations must be above 0")
 	}
 	internal.Log("Validate scale, range: [0.0f, 1.0f]")
 	if pass.Scale == 0 {

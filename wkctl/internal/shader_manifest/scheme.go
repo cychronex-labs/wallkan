@@ -9,6 +9,21 @@ const (
 	WK_CHANNEL_TYPE_SHADER_ASSET
 )
 
+type SamplerOptions string
+
+const (
+	SamplerLinear        SamplerOptions = "linear"
+	SamplerLinearClamp   SamplerOptions = "linear_clamp"
+	SamplerNearest       SamplerOptions = "nearest"
+	SamplerNearestClamp  SamplerOptions = "nearest_clamp"
+	SamplerLinearRepeat  SamplerOptions = "linear_repeat"
+	SamplerNearestRepeat SamplerOptions = "nearest_repeat"
+	SamplerLinearMirror  SamplerOptions = "linear_mirror"
+	SamplerMipmap        SamplerOptions = "mipmap"
+	SamplerMipmapRepeat  SamplerOptions = "mipmap_repeat"
+)
+const DefaultSamplerOption = SamplerLinear
+
 type Meta struct {
 	Name     string   `toml:"name"`
 	Version  string   `toml:"version"`
@@ -47,18 +62,18 @@ type Channel struct {
 	Type          ChannelType `toml:"-"`
 	ProducerIndex int         `toml:"-"`
 	As            string      `toml:"as"`
-	Filter        string      `toml:"filter,omitempty"`
-	Wrap          string      `toml:"wrap,omitempty"`
+	Sampler       string      `toml:"sampler"`
 }
 
 type ShaderPass struct {
-	Name      string    `toml:"name"`
-	Type      string    `toml:"type"`
-	Source    string    `toml:"source"`
-	Scale     float32   `toml:"scale"`
-	Formats   []string  `toml:"formats,omitempty"`
-	Workgroup [2]int    `toml:"workgroup,omitempty"`
-	Channels  []Channel `toml:"channels"`
+	Name       string    `toml:"name"`
+	Type       string    `toml:"type"`
+	Source     string    `toml:"source"`
+	Scale      float32   `toml:"scale"`
+	Formats    []string  `toml:"formats,omitempty"`
+	Workgroup  [2]int    `toml:"workgroup,omitempty"`
+	Channels   []Channel `toml:"channels"`
+	Iterations int       `toml:"iterations"`
 }
 
 type Manifest struct {
