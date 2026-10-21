@@ -43,7 +43,6 @@ func (container *WKSPContainer) AddGLSL(glsl_source string, passIndex int, build
 func (container *WKSPContainer) CompileAll(builddir string, manifest *shader_manifest.Manifest) error {
 	var errGroup errgroup.Group
 	internal.Log("Compiling all shaders...")
-	container.SPIRV_files = append(container.SPIRV_files, filepath.Join(builddir, "vertex_shader.spv"))
 	for i := range container.GLSL_files {
 		errGroup.Go(func() error {
 			if err := Compile(container.GLSL_files[i], container.SPIRV_files[i],
@@ -115,7 +114,7 @@ func (container *WKSPContainer) Output(builddir string, metadata []byte) (string
 	}
 
 	// Vertex shader
-	vertexSPIRV := container.SPIRV_files[container.PassCount]
+	vertexSPIRV, err := vertexCompile(builddir)
 	vert_file, err := os.Open(vertexSPIRV)
 	if err != nil {
 		return "", internal.Error("Failed to open file: %s (%s)", vertexSPIRV, err.Error())

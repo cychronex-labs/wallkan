@@ -4,10 +4,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"wkctl/internal"
 	"wkctl/internal/shader_manifest"
+	"wkctl/internal/wksp/meta"
 )
 
 var WkShaderHeader string = `#version 450
@@ -63,6 +65,14 @@ func generateFragmentHeader(pass *shader_manifest.ShaderPass) string {
 	return header.String()
 }
 
+func finalImageFooter() string {
+	return `void main() {
+	vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+	mainImage(fragColor, fragCoord);
+}
+	`
+}
+
 func generateComputeHeader(pass *shader_manifest.ShaderPass) string {
 	var header strings.Builder
 	header.WriteString(WkShaderHeader)
@@ -72,24 +82,18 @@ func generateComputeHeader(pass *shader_manifest.ShaderPass) string {
 	header.WriteString(strconv.Itoa(pass.Workgroup[1]))
 	header.WriteString(") in;")
 	header.WriteByte('\n')
-	header.WriteString("layout(set = 3, binding = 0) uniform writeonly image2D outImage;")
+	header.WriteString("layout(set = ")
+	header.WriteString(strconv.Itoa(int(meta.DESCRIPTOR_SET_INDEX_IMG_COMPUTE_STORAGE)))
+	header.WriteString(", binding = 0) uniform writeonly image2D outImage;\n")
 	return header.String()
 }
 
+// WkFrameData and WkPassData
 func generateUniforms(manifest *shader_manifest.Manifest) []Uniform {
 	return []Uniform{
 		Uniform{
-			Name:     UNIFORM_RESOLUTIONS,
-			GlslType: "vec3",
-			ArrayLen: len(manifest.ShaderPasses),
-		},
-		Uniform{
-			Name:     UNIFORM_CHANNEL_RES,
-			GlslType: "vec3",
-		},
-		Uniform{
 			Name:     UNIFORM_MOUSE,
-			GlslType: "vec3",
+			GlslType: "vec4",
 			ArrayLen: 0,
 		},
 		Uniform{
@@ -105,9 +109,11 @@ func generateUniforms(manifest *shader_manifest.Manifest) []Uniform {
 	}
 }
 
-func generateFrameUBO(uniforms []Uniform, dynArrayLen func(name string, current int) int) string {
+func generateFrameDataUBO(uniforms []Uniform, dynArrayLen func(name string, current int) int) string {
 	var frame_ubo strings.Builder
-	frame_ubo.WriteString("layout(scalar, set = 0, binding = 0) uniform WkFrameData {\n")
+	frame_ubo.WriteString("layout(scalar, set = ")
+	frame_ubo.WriteString(strconv.Itoa(int(meta.DESCRIPTOR_SET_INDEX_UBO_FRAME_DATA)))
+	frame_ubo.WriteString(", binding = 0) uniform WkFrameData {\n")
 	for i := range uniforms {
 		uniform := uniforms[i]
 
@@ -129,10 +135,70 @@ func generateFrameUBO(uniforms []Uniform, dynArrayLen func(name string, current 
 	return frame_ubo.String()
 }
 
-func generateShaderParamsUBO(params []shader_manifest.ShaderParameter) string {
+func generatePassDataUBO(manifest *shader_manifest.Manifest, passIndex int,
+	uniforms []Uniform, dynArrayLen func(name string, current int) int) string {
 
+	var frame_ubo strings.Builder
+	frame_ubo.WriteString("layout(scalar, set = ")
+	frame_ubo.WriteString(strconv.Itoa(int(meta.DESCRIPTOR_SET_INDEX_CHANNELS)))
+	frame_ubo.WriteString(", binding = 0) uniform WkPassData {\n")
+	for i := range uniforms {
+		uniform := uniforms[i]
+
+		frame_ubo.WriteByte('\t')
+		frame_ubo.WriteString(uniform.GlslType)
+		frame_ubo.WriteByte(' ')
+		frame_ubo.WriteString(uniform.Name)
+		uniform.ArrayLen = dynArrayLen(uniform.Name, uniform.ArrayLen)
+		if uniform.ArrayLen > 0 {
+			frame_ubo.WriteByte('[')
+			frame_ubo.WriteString(strconv.Itoa(uniform.ArrayLen))
+			frame_ubo.WriteByte(']')
+		}
+		frame_ubo.WriteByte(';')
+		frame_ubo.WriteByte('\n')
+	}
+	for i := range manifest.ShaderPasses {
+		if len(manifest.ShaderPasses[i].Channels) > 0 {
+			frame_ubo.WriteByte('\t')
+			if passIndex == i {
+				frame_ubo.WriteString("vec3 i")
+			} else {
+				frame_ubo.WriteString("vec3 Pass")
+				frame_ubo.WriteString(strconv.Itoa(i))
+			}
+			if len(manifest.ShaderPasses[i].Channels) > 0 {
+				frame_ubo.WriteString("ChannelResolution[")
+				frame_ubo.WriteString(strconv.Itoa(len(manifest.ShaderPasses[i].Channels)))
+				frame_ubo.WriteString("];")
+			}
+
+			frame_ubo.WriteByte('\n')
+		}
+	}
+	frame_ubo.WriteString("};\n")
+	return frame_ubo.String()
+}
+
+func generatePushConstants(manifest *shader_manifest.Manifest, passIndex int) string {
+	var pc strings.Builder
+	if manifest.ShaderPasses[passIndex].Iterations > 1 {
+		pc.WriteString("layout(push_constant, scalar) uniform PushConstants {")
+		pc.WriteString("	uint iterations;")
+		pc.WriteString("} pc;")
+	}
+	pc.WriteByte('\n')
+	return pc.String()
+}
+
+func generateShaderParamsUBO(params []shader_manifest.ShaderParameter) string {
+	if len(params) == 0 {
+		return "\n"
+	}
 	var param_layout strings.Builder
-	param_layout.WriteString("layout(scalar, set = 1, binding = 0) uniform ShaderParameters {\n")
+	param_layout.WriteString("layout(scalar, set = ")
+	param_layout.WriteString(strconv.Itoa(int(meta.DESCRIPTOR_SET_INDEX_UBO_SHADER_PARAMS)))
+	param_layout.WriteString(", binding = 0) uniform ShaderParameters {\n")
 	for i := range params {
 		param := &params[i]
 		param_layout.WriteByte('\t')
@@ -151,11 +217,25 @@ func generateShaderParamsUBO(params []shader_manifest.ShaderParameter) string {
 func generateChannelsLayout(manifest *shader_manifest.Manifest, passIndex int) string {
 
 	var channels strings.Builder
+	channels.WriteByte('\n')
+	channels.WriteString(generatePassDataUBO(manifest, passIndex, []Uniform{
+		Uniform{
+			Name:     UNIFORM_RESOLUTIONS,
+			GlslType: "vec3",
+			ArrayLen: len(manifest.ShaderPasses),
+		},
+	}, func(name string, val int) int { return val }))
+	channels.WriteByte('\n')
+
 	for i := range manifest.ShaderPasses[passIndex].Channels {
-		channels.WriteString("layout(set = 2, binding = ")
-		channels.WriteString(strconv.Itoa(i))
+		channels.WriteString("layout(set = ")
+		channels.WriteString(strconv.Itoa(int(meta.DESCRIPTOR_SET_INDEX_CHANNELS)))
+		channels.WriteString(", binding = ")
+		// 0 is reserved for Per pass data
+		channels.WriteString(strconv.Itoa(i + 1))
 		channels.WriteString(") uniform sampler2D ")
 		channels.WriteString("iChannel")
+		// Naming though do not account for per pass data
 		channels.WriteString(strconv.Itoa(i))
 		channels.WriteByte(';')
 		channels.WriteByte('\n')
@@ -222,7 +302,7 @@ func Preprocess(glsl_input_file string, glsl_output_file string,
 	manifest *shader_manifest.Manifest, passIndex int) (string, error) {
 
 	pass := &manifest.ShaderPasses[passIndex]
-	uniforms := generateUniforms(manifest)
+	frameData := generateUniforms(manifest)
 	var preprocessed_glsl strings.Builder
 	var preprocessed_glsl_str string
 
@@ -237,6 +317,9 @@ func Preprocess(glsl_input_file string, glsl_output_file string,
 	if err != nil {
 		return "", internal.Error("Failed to read include file: %s", glsl_input_file)
 	}
+
+	preprocessed_glsl.WriteString(generatePushConstants(manifest, passIndex))
+
 	if pass.Type == "fragment" {
 		preprocessed_glsl.WriteString(generateFragmentHeader(pass))
 	} else {
@@ -248,15 +331,24 @@ func Preprocess(glsl_input_file string, glsl_output_file string,
 	preprocessed_glsl.WriteString(generateShaderParamsUBO(manifest.ShaderParams))
 	preprocessed_glsl.WriteByte('\n')
 
-	preprocessed_glsl.WriteString(generateFrameUBO(uniforms,
+	preprocessed_glsl.WriteString(generateFrameDataUBO(frameData,
 		func(name string, current int) int {
-			if name == UNIFORM_CHANNEL_RES {
-				return len(pass.Channels)
-			}
 			return current
 		}))
+
 	preprocessed_glsl.WriteByte('\n')
-	preprocessed_glsl.WriteString(generateDefinitions(uniforms, manifest, passIndex))
+
+	preprocessed_glsl.WriteString(generateDefinitions(
+		slices.Concat(frameData, []Uniform{
+			Uniform{
+				Name:     UNIFORM_RESOLUTIONS,
+				GlslType: "vec3",
+				ArrayLen: len(manifest.ShaderPasses),
+			},
+			Uniform{
+				Name: UNIFORM_CHANNEL_RES,
+			}}),
+		manifest, passIndex))
 	preprocessed_glsl.WriteByte('\n')
 	for i := range manifest.Meta.Includes {
 		glsl_inc_file := filepath.Join(manifest.ShaderPath, manifest.Meta.Includes[i])
@@ -286,7 +378,11 @@ func Preprocess(glsl_input_file string, glsl_output_file string,
 	preprocessed_glsl.Write(input_glsl)
 	preprocessed_glsl.WriteByte('\n')
 	if pass.Type == "fragment" {
-		preprocessed_glsl.WriteString(WkShaderFragmentFooter)
+		if passIndex == len(manifest.ShaderPasses)-1 {
+			preprocessed_glsl.WriteString(finalImageFooter())
+		} else {
+			preprocessed_glsl.WriteString(WkShaderFragmentFooter)
+		}
 	} else {
 		preprocessed_glsl.WriteString(WkShaderComputeFooter)
 	}
