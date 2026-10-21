@@ -26,6 +26,17 @@ const (
 	WKSP_PARAM_TYPE_BOOL
 )
 
+type DescriptorSetIndex int
+
+const (
+	DESCRIPTOR_SET_INDEX_UBO_FRAME_DATA      DescriptorSetIndex = 0
+	DESCRIPTOR_SET_INDEX_UBO_SHADER_PARAMS   DescriptorSetIndex = 1
+	DESCRIPTOR_SET_INDEX_CHANNELS            DescriptorSetIndex = 2
+	DESCRIPTOR_SET_INDEX_IMG_COMPUTE_STORAGE DescriptorSetIndex = 3
+)
+
+const MAX_FRAMES_IN_FLIGHT = 2
+
 func createVecFromShaderParam[T any](shader_param *shader_manifest.ShaderParameter, converter func(any) T) (WKSPParamVector[T],
 	WKSPParamVector[T], WKSPParamVector[T]) {
 	//
@@ -94,24 +105,10 @@ func toInt32(val any) int32 {
 	return 0.0
 }
 
-func Build(manifest *shader_manifest.Manifest) *WKSPManifest {
-	wksp_manifest := WKSPManifest{
-		Meta: metadata{
-			Name:    manifest.Meta.Name,
-			Version: manifest.Meta.Version,
-			License: manifest.Meta.License,
-		},
-		ParamCount: len(manifest.ShaderParams),
-	}
-	// One for WkFrameData, One for Shader Parameters
-	wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
-		Type:  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-		Count: 2,
-	})
-	wksp_manifest.Descriptors.PoolMaxSets = 2
-
+func buildWKSPParams(manifest_in *shader_manifest.Manifest, wksp_manifest *WKSPManifest) {
+	wksp_manifest.Params = make([]any, 0, wksp_manifest.ParamCount)
 	for i := range wksp_manifest.ParamCount {
-		param := &manifest.ShaderParams[i]
+		param := &manifest_in.ShaderParams[i]
 
 		switch shader_manifest.ShaderParameterTypes[param.Type].Kind {
 		case "int":
@@ -157,48 +154,125 @@ func Build(manifest *shader_manifest.Manifest) *WKSPManifest {
 		}
 
 	}
-	storageImgDescIdx := len(wksp_manifest.Descriptors.Pool)
-	wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
-		Type:  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-		Count: 0,
-	})
-	combinedImgSamplerDescIdx := len(wksp_manifest.Descriptors.Pool)
-	wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
-		Type:  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-		Count: 0,
-	})
-	for i := range len(manifest.ShaderPasses) {
-		tomlPass := &manifest.ShaderPasses[i]
+
+}
+
+func buildWKSPChannels(tomlPass *shader_manifest.ShaderPass, wksp_pass *shaderPass, passIndex int) {
+	for i := range wksp_pass.ChannelCount {
+		toml_channel := &tomlPass.Channels[i]
+		wksp_channel := channel{
+			Name:          toml_channel.As,
+			Type:          toml_channel.Type,
+			ProducerIndex: toml_channel.ProducerIndex,
+		}
+		wksp_channel.Sampler, _ = ParseSamplerConfig(toml_channel.Sampler)
+		if passIndex == wksp_channel.ProducerIndex {
+			wksp_pass.SelfFeedback = true
+		}
+		wksp_pass.Channels = append(wksp_pass.Channels, wksp_channel)
+	}
+}
+
+func buildWKSPShaderPasses(manifest_in *shader_manifest.Manifest, wksp_manifest *WKSPManifest) {
+	for i := range len(manifest_in.ShaderPasses) {
+		tomlPass := &manifest_in.ShaderPasses[i]
 		channelCount := len(tomlPass.Channels)
 		wksp_pass := shaderPass{
 			Name:         tomlPass.Name,
 			Scale:        tomlPass.Scale,
 			Workgroup:    tomlPass.Workgroup,
 			ChannelCount: channelCount,
+			Iterations:   tomlPass.Iterations,
 		}
-		wksp_manifest.Descriptors.PoolMaxSets++
+
 		if tomlPass.Type == "fragment" {
 			wksp_pass.ShaderStage = VK_SHADER_STAGE_FRAGMENT_BIT
 		} else {
 			wksp_pass.ShaderStage = VK_SHADER_STAGE_COMPUTE_BIT
-			wksp_manifest.Descriptors.PoolMaxSets++
-			wksp_manifest.Descriptors.Pool[storageImgDescIdx].Count++
 		}
-		wksp_manifest.Descriptors.Pool[combinedImgSamplerDescIdx].Count++
 		for j := range len(tomlPass.Formats) {
 			wksp_pass.Formats = append(wksp_pass.Formats,
 				shader_manifest.ImageFormatMap[tomlPass.Formats[j]])
 		}
-		for j := range channelCount {
-			toml_channel := &tomlPass.Channels[j]
-			wksp_channel := channel{
-				Name:          toml_channel.As,
-				Type:          toml_channel.Type,
-				ProducerIndex: toml_channel.ProducerIndex,
-			}
-			wksp_pass.Channels = append(wksp_pass.Channels, wksp_channel)
-		}
+		buildWKSPChannels(tomlPass, &wksp_pass, i)
 		wksp_manifest.Passes = append(wksp_manifest.Passes, wksp_pass)
 	}
+}
+
+func configureDescriptors(wksp_manifest *WKSPManifest) {
+	maxSets := 2
+
+	descUboIdx := len(wksp_manifest.Descriptors.Pool)
+	wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
+		Type:  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		Count: 2,
+	})
+	if wksp_manifest.ParamCount > 0 {
+		maxSets += 2
+		wksp_manifest.Descriptors.Pool[0].Count += 2
+	}
+
+	combinedImgDescCount := 0
+	storageImgDescCount := 0
+
+	for i := range wksp_manifest.Passes {
+		wksp_pass := &wksp_manifest.Passes[i]
+		// PassData descriptor is per pass! though Buffer itself is one
+		maxSets += 2
+		wksp_manifest.Descriptors.Pool[descUboIdx].Count += 2
+		// Inputs/Channel set
+		if wksp_pass.ShaderStage == VK_SHADER_STAGE_COMPUTE_BIT {
+			maxSets += 2
+			storageImgDescCount += 2
+		}
+		if wksp_pass.SelfFeedback {
+			maxSets += 2
+			wksp_manifest.Descriptors.Pool[descUboIdx].Count += 2
+		}
+		for j := range wksp_pass.ChannelCount {
+			wksp_channel := &wksp_pass.Channels[j]
+			if wksp_channel.Type == shader_manifest.WK_CHANNEL_TYPE_SHADER_PASS {
+				wksp_channel.DescType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+			} else if wksp_channel.Type == shader_manifest.WK_CHANNEL_TYPE_SHADER_ASSET {
+				wksp_channel.DescType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+				continue
+			}
+			combinedImgDescCount += 2
+			if wksp_pass.SelfFeedback {
+				combinedImgDescCount += 2
+			}
+		}
+	}
+	if combinedImgDescCount > 0 {
+		wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
+			Type:  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			Count: combinedImgDescCount,
+		})
+	}
+	if storageImgDescCount > 0 {
+		wksp_manifest.Descriptors.Pool = append(wksp_manifest.Descriptors.Pool, Descriptor{
+			Type:  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			Count: storageImgDescCount,
+		})
+	}
+	wksp_manifest.Descriptors.PoolMaxSets = maxSets
+}
+
+func Build(manifest *shader_manifest.Manifest) *WKSPManifest {
+	wksp_manifest := WKSPManifest{
+		Meta: metadata{
+			Name:    manifest.Meta.Name,
+			Version: manifest.Meta.Version,
+			License: manifest.Meta.License,
+		},
+		ParamCount: len(manifest.ShaderParams),
+	}
+
+	buildWKSPParams(manifest, &wksp_manifest)
+
+	buildWKSPShaderPasses(manifest, &wksp_manifest)
+
+	configureDescriptors(&wksp_manifest)
+
 	return &wksp_manifest
 }
