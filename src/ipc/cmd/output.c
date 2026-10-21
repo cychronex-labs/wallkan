@@ -20,7 +20,7 @@ static yyjson_mut_val *create_output_obj(const Wallkan *wk, yyjson_mut_doc *resp
     yyjson_mut_obj_add_int(resp_doc, output_obj, "index", output_idx);
     yyjson_mut_obj_add_int(resp_doc, output_obj, "wl_registry_name", wk_output->registry_id);
     yyjson_mut_obj_add_bool(resp_doc, output_obj, "is_active",
-        wk->window.output_is_active_mask & (1 << output_idx));
+        wk->window.output_is_active_mask & (1u << output_idx));
     yyjson_mut_obj_add_int(resp_doc, output_obj, "width", wk_output->width);
     yyjson_mut_obj_add_int(resp_doc, output_obj, "height", wk_output->height);
     yyjson_mut_obj_add_int(resp_doc, output_obj, "scale", wk_output->scale);

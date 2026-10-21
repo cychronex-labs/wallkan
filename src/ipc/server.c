@@ -81,7 +81,7 @@ setup_server_sock(WallkanIpc *wk_ipc, struct sockaddr_un *addr)
 bool
 wk_ipc_reply_pending(WallkanIpc *wk_ipc, uint32_t client_idx)
 {
-    uint8_t client_mask = (1 << client_idx);
+    uint8_t client_mask = (1u << client_idx);
     return (wk_ipc->reply_is_due_bits & client_mask) &&
         (wk_ipc->active_client_bits & client_mask) &&
         wk_ipc->client_fd[client_idx] != -1;
@@ -154,7 +154,7 @@ wk_ipc_reply(WallkanIpc *wk_ipc, uint32_t client_idx, const WkIPCResponse *respo
         wk_ipc_disconnect_client(wk_ipc, client_idx);
         return WK_OK;
     }
-    wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
+    wk_ipc->reply_is_due_bits &= ~(1u << client_idx);
     WK_TRY(wk_ipc_reply_blind(wk_ipc, client_idx, response));
     return WK_OK;
 }
@@ -192,7 +192,7 @@ wk_ipc_accept_connection(Wallkan *wk, uint32_t *out_client_idx)
     }
 
     wk->ipc.client_fd[client_idx] = client_fd;
-    wk->ipc.active_client_bits |= (1 << client_idx);
+    wk->ipc.active_client_bits |= (1u << client_idx);
     *out_client_idx = client_idx;
     return WK_OK;
 err:
@@ -260,7 +260,7 @@ wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
 
     wk_ipc->client_msg_size[client_idx] = 0;
     if(wk_ipc->client_fd[client_idx] > -1){
-        if (wk_ipc->reply_is_due_bits & (1 << client_idx)) {
+        if (wk_ipc->reply_is_due_bits & (1u << client_idx)) {
             wk_ipc_reply_blind(wk_ipc, client_idx, &(const WkIPCResponse){
                 .status_code = WK_IPC_RESPONSE_STATUS_ERR,
                 .err_response = (WkIPCErrResponse){
@@ -273,8 +273,8 @@ wk_ipc_disconnect_client(WallkanIpc *wk_ipc, uint32_t client_idx)
         LOG("wk_ipc_disconnect_client: Client, fd: %d disconnected!", wk_ipc->client_fd[client_idx]);
     }
     wk_ipc->client_fd[client_idx] = -1;
-    wk_ipc->active_client_bits &= ~(1 << client_idx);
-    wk_ipc->reply_is_due_bits &= ~(1 << client_idx);
+    wk_ipc->active_client_bits &= ~(1u << client_idx);
+    wk_ipc->reply_is_due_bits &= ~(1u << client_idx);
 }
 
 WkResult

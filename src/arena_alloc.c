@@ -27,6 +27,7 @@ arena_alloc(ArenaAllocator *allocator, uint32_t size)
 {
     uint32_t aligned_size = (size + 15) & ~(15);
     if (!allocator->addr) return NULL;
+    // Enforce, Usage above ARENA_CAPACITY is abnormal in a single frame
     if(aligned_size > allocator->capacity - allocator->used) return NULL;
     uint8_t *next_addr = (uint8_t*)allocator->addr + allocator->used;
 

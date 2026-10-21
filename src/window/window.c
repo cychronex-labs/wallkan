@@ -1,7 +1,3 @@
-// window.c
-// Responsbilities;
-// 1. Wayland setup code
-// 2. Wayland event broadcasting
 #include <errno.h>
 #include <stdint.h>
 #include <string.h>

@@ -29,7 +29,7 @@ scan_physical_devices(ArenaAllocator *alloc, const WallkanInstance *wk_instance,
     }
     WK_TRY(EXPECT_VK(
         vkEnumeratePhysicalDevices(wk_instance->vk_instance, total_devices, *out_devices),
-        WK_ERR_VK_PHYSICAL_DEVICE_ENUMERATION_FAILURE, "Failed to get count of available GPUs!"
+        WK_ERR_VK_PHYSICAL_DEVICE_ENUMERATION_FAILURE, "Failed to get available GPUs!"
     ));
     return WK_OK;
 }
@@ -275,7 +275,7 @@ static void
 get_device_extensions(WallkanDevice *wk_device, const char **extensions, uint32_t *total_extensions)
 {
     // If extensions are supported then queue families are checked
-    // Therefore we check queue indexes
+    // Therefore we check queue indices
     // So even if a buggy case where extension exists but queue does wallkan just ignores video
     extensions[0] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     if(wk_device->video_info.video_decode_queue_idx != UINT32_MAX){

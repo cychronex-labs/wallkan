@@ -16,7 +16,7 @@
 WkResult
 ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t client_idx)
 {
-    wk->ipc.reply_is_due_bits |= (1 << client_idx);
+    wk->ipc.reply_is_due_bits |= (1u << client_idx);
     char *err_code = NULL;
     char *err_msg = NULL;
 
