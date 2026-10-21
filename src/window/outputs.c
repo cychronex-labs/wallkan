@@ -43,12 +43,16 @@ void cb_output_mode(void *data,
 	     int32_t refresh)
 {
     (void)wl_output;
-    (void)refresh;
     WallkanOutput *wk_output = (WallkanOutput *)data;
     if(flags & WL_OUTPUT_MODE_CURRENT){
         LOG("(CB)output_mode: Current output mode for %s is %ux%u", wk_output->name, width, height);
         wk_output->width = width;
         wk_output->height = height;
+        if (refresh > 0) {
+            wk_output->refresh_rate = refresh / 1000;
+        }else{
+            wk_output->refresh_rate = 30;
+        }
     }
 }
 
@@ -133,8 +137,8 @@ cb_on_layer_configure(void *data,
     // layer configuration
     if(!wk_output->layer_configured){
         ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
-        wk_output->wk_window->output_is_active_mask |= (1 << wk_output_idx);
-        wk_output->wk_window->output_frame_ready_mask |= (1 << wk_output_idx);
+        wk_output->wk_window->output_is_active_mask |= (1u << wk_output_idx);
+        wk_output->wk_window->output_frame_ready_mask |= (1u << wk_output_idx);
         wk_output->layer_configured = true;
     }
 
@@ -190,7 +194,7 @@ cb_on_frame_done(void *data, struct wl_callback *cb, uint32_t time)
     ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
     wl_callback_destroy(cb);
     wk_output->frame_cb = NULL;
-    wk_output->wk_window->output_frame_ready_mask |= (1 << wk_output_idx);
+    wk_output->wk_window->output_frame_ready_mask |= (1u << wk_output_idx);
     wk_output->frame_time_ms = time;
 }
 
@@ -202,7 +206,7 @@ static WallkanOutput *
 get_first_inactive_wk_output(WallkanWindow *wk_window)
 {
     for (uint32_t i=0; i<MAX_OUTPUTS; i++) {
-        if(wk_window->output_is_active_mask & (1 << i)){
+        if(wk_window->output_is_active_mask & (1u << i)){
             continue;
         }
         if(wk_window->wk_outputs[i].wl_output){
@@ -217,7 +221,7 @@ bool
 wk_output_is_active(WallkanOutput *wk_output)
 {
     ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
-    return wk_output->wk_window->output_is_active_mask & (1 << wk_output_idx);
+    return wk_output->wk_window->output_is_active_mask & (1u << wk_output_idx);
 }
 
 WkResult
@@ -303,7 +307,7 @@ wk_output_request_frame(WallkanOutput *wk_output)
 {
     ptrdiff_t wk_output_idx = wk_output - wk_output->wk_window->wk_outputs;
 
-    wk_output->wk_window->output_frame_ready_mask &= ~(1 << wk_output_idx);
+    wk_output->wk_window->output_frame_ready_mask &= ~(1u << wk_output_idx);
     if (wk_output->frame_cb != NULL) return;
     wk_output->frame_cb = wl_surface_frame(wk_output->surface);
     wl_callback_add_listener(wk_output->frame_cb, &frame_listener, wk_output);
@@ -321,8 +325,8 @@ wk_output_disable(WallkanOutput *wk_output)
             wk_output_idx);
         goto err;
     }
-    wk_output->wk_window->output_is_active_mask &= ~(1 << wk_output_idx);
-    wk_output->wk_window->output_frame_ready_mask &= ~(1 << wk_output_idx);
+    wk_output->wk_window->output_is_active_mask &= ~(1u << wk_output_idx);
+    wk_output->wk_window->output_frame_ready_mask &= ~(1u << wk_output_idx);
     if (wk_output->frame_cb) {
         wl_callback_destroy(wk_output->frame_cb);
         wk_output->frame_cb = NULL;

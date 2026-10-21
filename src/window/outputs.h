@@ -23,10 +23,16 @@ typedef struct WallkanOutput {
     uint32_t width;
     uint32_t height;
     uint32_t scale;
+    uint32_t refresh_rate;
 
     struct wl_callback *frame_cb;
     uint32_t frame_time_ms;
+    // This flag is primarily used to track whether an output was already registered
+    // So the cb_output_*
     bool got_details;
+    // This flag primarily used by cb_on_layer_configure is used
+    // to track whether the callback was due to a new output configured
+    // OR because of a resize occurred in that output
     bool layer_configured;
 } WallkanOutput;
 
