@@ -1,14 +1,17 @@
-#include "common.h"
+#include "wksp/parser.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <vulkan/vulkan.h>
+#include <yyjson.h>
+
 #include "arena_alloc.h"
+#include "common.h"
 #include "err.h"
 #include "renderer/device.h"
-#include "subprojects/yyjson/yyjson.h"
 #include "yyjson_alc.h"
-#include <stdint.h>
-#include <string.h>
-#include <vulkan/vulkan_core.h>
-#include <wksp/parser.h>
-#include <yyjson.h>
 
 void
 wksp_parser_init(WKSPParser *parser, ArenaAllocator *alloc)

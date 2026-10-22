@@ -1,10 +1,9 @@
-// Instead of numerous allocation just for a temporary initialization phase
-// Allocate a large pool for all temporary allocations and free all of them at once when
-// initialization phase ends
-#ifndef WALLKAN_ARENA_ALLOCATOR
-#define WALLKAN_ARENA_ALLOCATOR
-#include "err.h"
+#ifndef WALLKAN_ARENA_ALLOCATOR_H
+#define WALLKAN_ARENA_ALLOCATOR_H
+
 #include <stdint.h>
+
+#include "err.h"
 
 typedef struct ArenaAllocator {
     void *addr;

@@ -1,15 +1,17 @@
+#include "renderer/renderer.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/instance.h"
 #include "renderer/scene/scene.h"
-#include "window/outputs.h"
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <vulkan/vulkan_core.h>
-#include "renderer/renderer.h"
+#include "window/window.h"
 
 WkResult
 wk_renderer_init(ArenaAllocator *alloc, WallkanRenderer *wk_renderer, WallkanWindow *wk_window)

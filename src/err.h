@@ -1,7 +1,8 @@
 #ifndef WALLKAN_ERR_H
 #define WALLKAN_ERR_H
 
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan.h>
+
 typedef enum WkResult {
     WK_OK,
     WK_ERR_ALLOCATION_FAILURE,

@@ -1,14 +1,17 @@
+#include "renderer/device.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_wayland.h>
+#include <wayland-client-core.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/instance.h"
-#include "renderer/device.h"
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
-#include <sys/types.h>
-#include <vulkan/vulkan_core.h>
-#include <wayland-client-core.h>
 
 static WkResult
 scan_physical_devices(ArenaAllocator *alloc, const WallkanInstance *wk_instance,

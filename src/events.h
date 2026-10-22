@@ -1,11 +1,15 @@
-#ifndef WALLKAN_EVENT_HANDLER_H
-#define WALLKAN_EVENT_HANDLER_H
+#ifndef WALLKAN_EVENTS_H
+#define WALLKAN_EVENTS_H
+
 #include <stdint.h>
+
 #include "err.h"
-#include "window/outputs.h"
 
 #define QUEUE_SIZE 16
 #define MAX_CALLBACK_SLOTS 4
+
+typedef struct WallkanOutput WallkanOutput;
+typedef struct WallkanIpc WallkanIpc;
 
 typedef enum WkEventType {
     WK_EVENT_NONE = 0,

@@ -1,17 +1,19 @@
-#include "arena_alloc.h"
-#include "common.h"
-#include "err.h"
 #include "ipc/cmd/handle.h"
-#include "ipc/cmd/output.h"
-#include "ipc/cmd/quit.h"
-#include "ipc/cmd/scene.h"
-#include "ipc/server.h"
-#include "subprojects/yyjson/yyjson.h"
-#include "wallkan.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
+#include <yyjson.h>
+
+#include "arena_alloc.h"
+#include "common.h"
+#include "err.h"
+#include "ipc/cmd/output.h"
+#include "ipc/cmd/quit.h"
+#include "ipc/cmd/scene.h"
+#include "ipc/server.h"
+#include "wallkan.h"
 
 WkResult
 ipc_cmd_handle(ArenaAllocator *alloc, yyjson_doc *doc, Wallkan *wk, uint32_t client_idx)

@@ -1,8 +1,16 @@
 #ifndef WALLKAN_RENDERER_DEVICE_H
 #define WALLKAN_RENDERER_DEVICE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "err.h"
-#include "renderer/instance.h"
+
+struct wl_display;
+typedef struct WallkanInstance WallkanInstance;
 
 typedef struct HardwareInfo {
     char device_name[256];

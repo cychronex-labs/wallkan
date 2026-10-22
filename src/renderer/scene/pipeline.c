@@ -1,16 +1,20 @@
-#include "arena_alloc.h"
 #include "renderer/scene/pipeline.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
+#include "renderer/device.h"
 #include "renderer/scene/descriptor.h"
+#include "renderer/scene/push_constants.h"
 #include "renderer/scene/scene.h"
 #include "renderer/scene/texture.h"
 #include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <vulkan/vulkan_core.h>
-#include "renderer/scene/push_constants.h"
 
 static WkResult
 init_pipeline_layout(const WallkanDevice *wk_device, WallkanPipeline *wk_pipeline,

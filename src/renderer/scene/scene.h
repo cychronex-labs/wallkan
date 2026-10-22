@@ -1,14 +1,17 @@
 #ifndef WALLKAN_RENDERER_SCENE_H
 #define WALLKAN_RENDERER_SCENE_H
+
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
 #include "err.h"
 #include "renderer/device.h"
-#include "renderer/scene/descriptor.h"
 #include "renderer/scene/pipeline.h"
 #include "renderer/scene/texture.h"
 #include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
-#include <stdint.h>
-#include <vulkan/vulkan_core.h>
 
 typedef struct WallkanScene {
     int timerfd;

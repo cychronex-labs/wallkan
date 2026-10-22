@@ -1,7 +1,15 @@
-#ifndef WALLKAN_RENDERER_SWAPCHAIN_H
-#define WALLKAN_RENDERER_SWAPCHAIN_H
+#ifndef WALLKAN_SURFACE_SWAPCHAIN_H
+#define WALLKAN_SURFACE_SWAPCHAIN_H
+
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
 #include "err.h"
-#include "renderer/device.h"
+
+typedef struct WallkanDevice WallkanDevice;
+typedef struct WallkanOutput WallkanOutput;
 
 typedef struct WallkanSwapchain {
     VkSwapchainKHR vk_swapchain;

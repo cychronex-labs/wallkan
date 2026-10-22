@@ -1,11 +1,16 @@
+#include "surface/surface.h"
+
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/instance.h"
 #include "renderer/scene/scene.h"
+#include "surface/swapchain.h"
 #include "window/outputs.h"
-#include <stdint.h>
-#include <surface/surface.h>
 
 WkResult
 wk_surface_init(ArenaAllocator *alloc, WallkanInstance *wk_instance, WallkanDevice *wk_device,

@@ -1,11 +1,17 @@
+#include "wallkan.h"
+
 #include <errno.h>
+#include <poll.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <poll.h>
 #include <string.h>
 #include <unistd.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
 #include <wayland-client-core.h>
+
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "events.h"
@@ -14,9 +20,7 @@
 #include "surface/surface.h"
 #include "window/outputs.h"
 #include "window/window.h"
-#include "arena_alloc.h"
 #include "wksp/parser.h"
-#include "wallkan.h"
 
 // Callbacks
 static WkResult

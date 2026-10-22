@@ -1,12 +1,19 @@
+#include "window/window.h"
+
 #include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/types.h>
+
+#include <linux/input-event-codes.h>
+#include <wayland-client-core.h>
+#include <wayland-client-protocol.h>
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
+
 #include "common.h"
 #include "err.h"
 #include "events.h"
 #include "window/outputs.h"
-#include "window/window.h"
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 

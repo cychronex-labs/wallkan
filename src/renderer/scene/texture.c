@@ -1,7 +1,11 @@
-#include "err.h"
-#include <renderer/scene/texture.h>
+#include "renderer/scene/texture.h"
+
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "err.h"
+#include "renderer/device.h"
 
 static WkResult
 find_memory_type(const WallkanDevice *wk_device, uint32_t memoryTypeBits,

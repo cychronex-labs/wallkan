@@ -1,15 +1,20 @@
-#ifndef WALLKAN_RENDERER_H
-#define WALLKAN_RENDERER_H
-#include "err.h"
-#include "renderer/scene/scene.h"
-#include "surface/surface.h"
-#include "window/window.h"
-#include "renderer/instance.h"
-#include "renderer/device.h"
+#ifndef WALLKAN_RENDERER_RENDERER_H
+#define WALLKAN_RENDERER_RENDERER_H
+
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
+#include "err.h"
+#include "renderer/device.h"
+#include "renderer/instance.h"
+#include "renderer/scene/scene.h"
 
 #define MAX_SCENES 64
+
+typedef struct WallkanWindow WallkanWindow;
+typedef struct WkSceneConfig WkSceneConfig;
 
 typedef struct WallkanRenderer {
     WallkanInstance  wk_instance;

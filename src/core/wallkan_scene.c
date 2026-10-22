@@ -1,7 +1,15 @@
+#include "wallkan.h"
+
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
+#include "common.h"
 #include "err.h"
 #include "renderer/renderer.h"
-#include "wallkan.h"
-#include <stdint.h>
+#include "renderer/scene/scene.h"
+#include "surface/surface.h"
+#include "wksp/parser.h"
 
 WkResult
 wallkan_load_scene(Wallkan *wk, const char *wksp_path, uint32_t fps, VkExtent2D extent)

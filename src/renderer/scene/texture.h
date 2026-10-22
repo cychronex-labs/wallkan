@@ -1,8 +1,11 @@
-#ifndef WALLKAN_RENDERER_SCENE_TEXTURE
-#define WALLKAN_RENDERER_SCENE_TEXTURE
+#ifndef WALLKAN_RENDERER_SCENE_TEXTURE_H
+#define WALLKAN_RENDERER_SCENE_TEXTURE_H
+
+#include <vulkan/vulkan.h>
+
 #include "err.h"
-#include "renderer/device.h"
-#include <vulkan/vulkan_core.h>
+
+typedef struct WallkanDevice WallkanDevice;
 
 typedef struct WkTexture {
     VkDeviceMemory      memory;

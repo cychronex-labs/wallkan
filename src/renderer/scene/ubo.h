@@ -1,10 +1,19 @@
-#ifndef WALLKAN_SCENE_UBO
-#define WALLKAN_SCENE_UBO
-#include "renderer/device.h"
+#ifndef WALLKAN_RENDERER_SCENE_UBO_H
+#define WALLKAN_RENDERER_SCENE_UBO_H
+
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "err.h"
+
 #define MAX_UBO 8
 #define SHADERTOY_RESOLUTION_SIZE sizeof(float[3])
+
+typedef struct WallkanDevice WallkanDevice;
+typedef struct WallkanPipeline WallkanPipeline;
+typedef struct WallkanScene WallkanScene;
+typedef struct WKSPContainer WKSPContainer;
 
 enum WkFrameDataOffset {
     WK_FRAME_DATA_START_POSITION = 0,

@@ -1,9 +1,12 @@
-#ifndef WALLKAN_OUTPUTS_H
-#define WALLKAN_OUTPUTS_H
-#include <stdint.h>
+#ifndef WALLKAN_WINDOW_OUTPUTS_H
+#define WALLKAN_WINDOW_OUTPUTS_H
+
 #include <stdbool.h>
+#include <stdint.h>
+
 #include <wayland-client-protocol.h>
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
+
 #include "err.h"
 
 #define MAX_OUTPUTS 8
@@ -11,6 +14,7 @@
 
 typedef struct WallkanWindow WallkanWindow;
 typedef struct WallkanIpc WallkanIpc;
+
 typedef struct WallkanOutput {
     char name[MAX_OUTPUT_NAME_SIZE];
     uint32_t registry_id;

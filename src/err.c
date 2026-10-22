@@ -1,8 +1,11 @@
+#include "err.h"
+
 #include <stdarg.h>
 #include <stdio.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
 #include "common.h"
-#include "err.h"
 
 WkResult
 wk_log_error(WkResult code, const char *code_name, const char *file, int line, const char *fmt,...)

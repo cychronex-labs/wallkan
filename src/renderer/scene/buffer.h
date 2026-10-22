@@ -1,10 +1,13 @@
 #ifndef WALLKAN_RENDERER_SCENE_BUFFER_H
 #define WALLKAN_RENDERER_SCENE_BUFFER_H
 
-#include "renderer/device.h"
-#include <err.h>
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "err.h"
+
+typedef struct WallkanDevice WallkanDevice;
 
 WkResult
 wk_buffer_new(const WallkanDevice *wk_device, VkBufferUsageFlags buf_usage,

@@ -1,14 +1,18 @@
-#ifndef WALLKAN_WINDOW_H
-#define WALLKAN_WINDOW_H
-#include <stdint.h>
+#ifndef WALLKAN_WINDOW_WINDOW_H
+#define WALLKAN_WINDOW_WINDOW_H
+
 #include <stdbool.h>
+#include <stdint.h>
+
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
-#include <linux/input-event-codes.h>
-#include "window/outputs.h"
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 
+#include "err.h"
+#include "window/outputs.h"
+
 typedef struct WallkanEventHandler WallkanEventHandler;
+
 typedef struct WallkanWindow{
     WallkanOutput wk_outputs[MAX_OUTPUTS];
     uint8_t output_frame_ready_mask;

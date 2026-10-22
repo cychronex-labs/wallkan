@@ -1,11 +1,18 @@
-#ifndef WALLKAN_SURFACE_H
-#define WALLKAN_SURFACE_H
-#include "err.h"
-#include "renderer/scene/scene.h"
-#include "surface/swapchain.h"
-#include "window/outputs.h"
+#ifndef WALLKAN_SURFACE_SURFACE_H
+#define WALLKAN_SURFACE_SURFACE_H
+
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "err.h"
+#include "surface/swapchain.h"
+
+typedef struct ArenaAllocator ArenaAllocator;
+typedef struct WallkanDevice WallkanDevice;
+typedef struct WallkanInstance WallkanInstance;
+typedef struct WallkanOutput WallkanOutput;
+typedef struct WallkanScene WallkanScene;
 
 typedef struct WallkanSurface {
     WallkanOutput     *wk_output;

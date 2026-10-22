@@ -1,12 +1,17 @@
 #include "surface/swapchain.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "window/outputs.h"
-#include <stdint.h>
-#include <stdlib.h>
-#include <vulkan/vulkan_core.h>
+
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
 

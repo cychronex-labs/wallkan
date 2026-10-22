@@ -1,9 +1,13 @@
 #ifndef WALLKAN_RENDERER_INSTANCE_H
 #define WALLKAN_RENDERER_INSTANCE_H
+
 #include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
-#include "window/window.h"
 #include "err.h"
+
+typedef struct WallkanOutput WallkanOutput;
+typedef struct WallkanWindow WallkanWindow;
 
 typedef struct WallkanInstance{
     VkInstance               vk_instance;

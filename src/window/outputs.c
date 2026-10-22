@@ -1,15 +1,19 @@
 #include "window/outputs.h"
-#include "common.h"
-#include "err.h"
-#include "events.h"
-#include "window/window.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
+
 #include <wayland-client-protocol.h>
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
+
+#include "common.h"
+#include "err.h"
+#include "events.h"
+#include "window/window.h"
+
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 void cb_output_geometry(void *data,

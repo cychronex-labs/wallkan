@@ -1,5 +1,12 @@
-#include "err.h"
 #include "wallkan.h"
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "common.h"
+#include "err.h"
+#include "surface/surface.h"
+#include "window/outputs.h"
 
 WkResult
 wallkan_enable_output(Wallkan *wk, WallkanOutput *wk_output)

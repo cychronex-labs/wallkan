@@ -1,13 +1,16 @@
-#ifndef WALLKAN_RENDERER_SCENE_DESCRIPTOR
-#define WALLKAN_RENDERER_SCENE_DESCRIPTOR
-#include "common.h"
+#ifndef WALLKAN_RENDERER_SCENE_DESCRIPTOR_H
+#define WALLKAN_RENDERER_SCENE_DESCRIPTOR_H
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
 #include "err.h"
 #include "renderer/device.h"
 #include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
-#include <vulkan/vulkan_core.h>
 
 typedef struct WallkanPipeline WallkanPipeline;
+typedef struct WallkanScene WallkanScene;
 
 WkResult
 descriptor_pool_init(WallkanPipeline *wk_pipeline, const WallkanDevice *wk_device, const WKSPContainer *wksp);

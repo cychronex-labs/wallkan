@@ -1,4 +1,15 @@
 #include "renderer/scene/scene.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include <sys/timerfd.h>
+#include <unistd.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
@@ -7,13 +18,7 @@
 #include "renderer/scene/texture.h"
 #include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
-#include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <time.h>
-#include <unistd.h>
-#include <vulkan/vulkan_core.h>
-#include <sys/timerfd.h>
+
 #define NS_PER_SEC 1000000000ULL
 static WkResult
 wk_scene_load_shader_params(WallkanScene *wk_scene, const WKSPParameter *params,

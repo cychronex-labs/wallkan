@@ -1,16 +1,23 @@
-#ifndef WALLKAN_RENDERER_SCENE_PIPELINE
-#define WALLKAN_RENDERER_SCENE_PIPELINE
+#ifndef WALLKAN_RENDERER_SCENE_PIPELINE_H
+#define WALLKAN_RENDERER_SCENE_PIPELINE_H
+
 #include <math.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
+#include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "renderer/device.h"
-#include "renderer/scene/descriptor.h"
-#include "renderer/scene/ubo.h"
 #include "renderer/scene/texture.h"
-#include <stdint.h>
-#include <vulkan/vulkan_core.h>
+#include "renderer/scene/ubo.h"
+#include "wksp/parser.h"
 
 #define PINGPONG_IMG_COUNT 2
+
+typedef struct WallkanScene WallkanScene;
 
 typedef struct WkPassChannel {
     WkChannelType type;

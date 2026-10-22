@@ -1,7 +1,9 @@
-#ifndef IPC_YYJSON_ALC_H
-#define IPC_YYJSON_ALC_H
+#ifndef WALLKAN_YYJSON_ALC_H
+#define WALLKAN_YYJSON_ALC_H
+
+#include <yyjson.h>
+
 #include "arena_alloc.h"
-#include "subprojects/yyjson/yyjson.h"
 
 yyjson_alc
 wk_yyjson_create_pool(ArenaAllocator *alloc);

@@ -1,14 +1,18 @@
+#include "renderer/instance.h"
+
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
-#include <vulkan/vulkan_core.h>
+
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_wayland.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
+#include "window/outputs.h"
 #include "window/window.h"
-#include "renderer/instance.h"
 
 #define MAX_VK_INSTANCE_EXT_COUNT 4
 

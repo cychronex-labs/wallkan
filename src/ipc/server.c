@@ -1,26 +1,28 @@
+#include "ipc/server.h"
+
+#include <errno.h>
 #include <limits.h>
-#include <linux/limits.h>
-#include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
+
 #include <cwalk.h>
 #include <yyjson.h>
-#include "yyjson_alc.h"
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
 #include "events.h"
-#include "subprojects/yyjson/yyjson.h"
-#include "ipc/server.h"
 #include "ipc/cmd/handle.h"
+#include "wallkan.h"
+#include "yyjson_alc.h"
 
 static WkResult
 get_socket_path(char *sock_path, size_t max_len)

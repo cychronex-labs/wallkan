@@ -1,12 +1,19 @@
 #ifndef WALLKAN_H
 #define WALLKAN_H
+
+#include <poll.h>
 #include <stdbool.h>
-#include <sys/poll.h>
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
+#include "err.h"
 #include "events.h"
 #include "ipc/server.h"
 #include "renderer/renderer.h"
 #include "surface/surface.h"
+#include "window/outputs.h"
 #include "window/window.h"
 #include "wksp/parser.h"
 

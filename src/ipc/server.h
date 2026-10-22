@@ -1,11 +1,18 @@
 #ifndef WALLKAN_IPC_SERVER_H
 #define WALLKAN_IPC_SERVER_H
+
+#include <stdbool.h>
 #include <stdint.h>
+
 #include <yyjson.h>
+
 #include "arena_alloc.h"
+#include "err.h"
 #include "events.h"
+
 #define MAX_IPC_BUFFER_SIZE (8 * 1024)
 #define MAX_IPC_CLIENTS 8
+
 typedef struct Wallkan Wallkan;
 
 typedef struct WallkanIpc {

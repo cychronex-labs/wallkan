@@ -1,7 +1,9 @@
+#include "events.h"
+
 #include <stdint.h>
 #include <stdlib.h>
+
 #include "err.h"
-#include "events.h"
 
 WkResult
 wk_ev_handler_init(WallkanEventHandler *wk_ev_handler)

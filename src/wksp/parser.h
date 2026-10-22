@@ -1,12 +1,16 @@
 #ifndef WALLKAN_WKSP_PARSER_H
 #define WALLKAN_WKSP_PARSER_H
-#include "arena_alloc.h"
-#include "renderer/device.h"
-#include "err.h"
-#include "subprojects/yyjson/yyjson.h"
+
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+#include <yyjson.h>
+
+#include "arena_alloc.h"
+#include "err.h"
+#include "renderer/device.h"
 
 #define ERR_INV_WKSP(filename) \
     WK_ERR(WK_ERR_INVALID_WKSP_FILE, "Corrupted WKSP file: %s", (filename))

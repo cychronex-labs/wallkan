@@ -1,12 +1,14 @@
-#include <string.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <stdalign.h>
-#include <stddef.h>
+#include "arena_alloc.h"
+
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include <sys/mman.h>
+#include <unistd.h>
+
 #include "err.h"
-#include "arena_alloc.h"
+
 #define ARENA_CAPACITY (12 * 1024 * 1024)
 #define ARENA_MADVISE_THRESHOLD (6 * 1024 * 1024)
 

@@ -1,16 +1,18 @@
-#include "renderer/device.h"
-#include "renderer/scene/buffer.h"
-#include "common.h"
-#include "err.h"
-#include "renderer/scene/descriptor.h"
-#include "renderer/scene/pipeline.h"
-#include "renderer/scene/scene.h"
-#include "wksp/parser.h"
 #include "renderer/scene/ubo.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vulkan/vulkan_core.h>
+
+#include <vulkan/vulkan.h>
+
+#include "common.h"
+#include "err.h"
+#include "renderer/device.h"
+#include "renderer/scene/buffer.h"
+#include "renderer/scene/pipeline.h"
+#include "renderer/scene/scene.h"
+#include "wksp/parser.h"
 
 static VkDeviceSize
 align_up(VkDeviceSize size, VkDeviceSize alignment)

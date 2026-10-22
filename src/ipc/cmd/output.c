@@ -1,14 +1,17 @@
 #include "ipc/cmd/output.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <yyjson.h>
+
 #include "arena_alloc.h"
 #include "err.h"
 #include "events.h"
 #include "ipc/server.h"
-#include "subprojects/yyjson/yyjson.h"
 #include "wallkan.h"
 #include "window/outputs.h"
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
 
 static yyjson_mut_val *create_output_obj(const Wallkan *wk, yyjson_mut_doc *resp_doc,
     uint32_t output_idx)

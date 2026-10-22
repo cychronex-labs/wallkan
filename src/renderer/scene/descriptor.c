@@ -1,4 +1,9 @@
 #include "renderer/scene/descriptor.h"
+
+#include <stdint.h>
+
+#include <vulkan/vulkan.h>
+
 #include "arena_alloc.h"
 #include "common.h"
 #include "err.h"
@@ -8,9 +13,6 @@
 #include "renderer/scene/texture.h"
 #include "renderer/scene/ubo.h"
 #include "wksp/parser.h"
-#include <stdint.h>
-#include <sys/types.h>
-#include <vulkan/vulkan_core.h>
 
 WkResult
 descriptor_pool_init(WallkanPipeline *wk_pipeline, const WallkanDevice *wk_device,

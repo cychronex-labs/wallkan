@@ -1,7 +1,13 @@
+#include "yyjson_alc.h"
+
+#include <stddef.h>
+#include <string.h>
+
+#include <yyjson.h>
+
 #include "arena_alloc.h"
 #include "err.h"
-#include "subprojects/yyjson/yyjson.h"
-#include <string.h>
+
 // if yyjson json data exceeds the size of initial pool size it will use malloc
 // To prevent it we feed it custom wrapper around Arena Allocator
 static void *wk_yyjson_arena_alloc(void *ctx, size_t size) {

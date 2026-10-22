@@ -1,10 +1,16 @@
 #include "ipc/cmd/scene.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <vulkan/vulkan.h>
+#include <yyjson.h>
+
 #include "arena_alloc.h"
 #include "err.h"
+#include "ipc/server.h"
 #include "wallkan.h"
-#include <stdint.h>
-#include <vulkan/vulkan_core.h>
-#include <yyjson.h>
 
 static WkResult
 ipc_cmd_scene_load_wksp(ArenaAllocator *alloc, Wallkan *wk, uint32_t client_idx, yyjson_val *cmd_root)

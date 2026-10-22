@@ -1,7 +1,11 @@
 #ifndef WALLKAN_IPC_CMD_QUIT_H
 #define WALLKAN_IPC_CMD_QUIT_H
+
+#include <stdint.h>
+
 #include "err.h"
-#include "wallkan.h"
+
+typedef struct Wallkan Wallkan;
 
 WkResult
 ipc_cmd_quit(Wallkan *wk, uint32_t client_idx);

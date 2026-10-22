@@ -1,4 +1,8 @@
 #include "ipc/cmd/quit.h"
+
+#include <stdint.h>
+
+#include "err.h"
 #include "ipc/server.h"
 #include "wallkan.h"
 
