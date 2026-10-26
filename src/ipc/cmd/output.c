@@ -122,7 +122,7 @@ ipc_cmd_output_enable(ArenaAllocator *alloc, Wallkan *wk, yyjson_val *cmd_root, 
     yyjson_val *target_obj = yyjson_obj_get(cmd_root, "target");
     if(!target_obj){
         strcpy(err_code, "invalid_data");
-        err_msg = "required key 'target' not found!";
+        strcpy(err_msg, "required key 'target' not found!");
         goto err;
     }
 
@@ -210,7 +210,7 @@ ipc_cmd_output_disable(ArenaAllocator *alloc, Wallkan *wk, yyjson_val *cmd_root,
     yyjson_val *target_obj = yyjson_obj_get(cmd_root, "target");
     if(!target_obj){
         strcpy(err_code, "invalid_data");
-        err_msg = "required key 'target' not found!";
+        strcpy(err_msg, "required key 'target' not found!");
         goto err;
     }
 
