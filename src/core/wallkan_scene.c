@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 #include "common.h"
 #include "err.h"
@@ -32,15 +33,20 @@ wallkan_load_scene(Wallkan *wk, const char *wksp_path, uint32_t fps, VkExtent2D 
     };
 
     uint8_t active_mask = wk->window.output_is_active_mask;
+    uint32_t scene_fps = scene_config.fps;
     while (active_mask) {
         output_idx = bit_pop_lsb(&active_mask);
-        scene_config.texture_config.extent = wk->surfaces[output_idx].wk_swapchain.image_extent;
-        if (scene_config.fps == 0) {
+        scene_config.texture_config.extent = (VkExtent2D){
+            wk->surfaces[output_idx].wk_output->width,
+            wk->surfaces[output_idx].wk_output->height,
+        };
+        if (scene_fps == 0) {
             scene_config.fps = wk->window.wk_outputs[output_idx].refresh_rate;
         }
         wkres = wk_renderer_new_scene(&wk->arena_alloc, &wk->renderer, &scene_config, &scene_idx);
         if(wkres != WK_OK) goto err;
         wk->poll_fds[POLL_SCENE_START+scene_idx].fd = wk->renderer.wk_scenes[scene_idx].timerfd;
+
         wk->surfaces[output_idx].scene_idx = scene_idx;
     }
     wksp_destroy(&wk->renderer.wk_device, &wksp);
