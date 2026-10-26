@@ -206,6 +206,7 @@ wk_ubo_pass_data_init(const WKSPContainer *wksp, VkExtent2D final_resolution,
         for (uint32_t j=0; j<wksp->passes[i].channel_count; j++) {
             WKSPPassChannel *channel = &wksp->passes[i].channels[j];
             if (channel->type != WK_CHANNEL_TYPE_SHADER_PASS) {
+                channel_res_idx_start += 3;
                 continue;
             }
             write_shadertoy_resolution_flat(ch_resolutions, channel_res_idx_start,
@@ -242,6 +243,7 @@ wk_ubo_pass_data_update(const WallkanPipeline *wk_pipeline, float *pass_resoluti
         for (uint32_t j=0; j<wk_pipeline->passes_data[i].channel_count; j++) {
             WkPassChannel *channel = &wk_pipeline->passes_data[i].channels[j];
             if (channel->type != WK_CHANNEL_TYPE_SHADER_PASS) {
+                channel_res_idx_start += 3;
                 continue;
             }
             write_shadertoy_resolution_flat(ch_resolutions, channel_res_idx_start, final_resolution,
